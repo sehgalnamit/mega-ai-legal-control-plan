@@ -1,0 +1,6 @@
+pydantic>=2.0
+pyDatalog>=0.17.4
+networkx>=3.0
+streamlit>=1.30
+openai>=1.0
+pytest>=7.0
