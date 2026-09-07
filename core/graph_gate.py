@@ -47,6 +47,9 @@ class PrecedentGraph:
     def _seed_demo_precedents(self) -> None:
         self.add_precedent("Spandeck Engineering v AGC [2007] 4 SLR(R) 100", CourtLevel.SGCA)
         self.add_precedent("Anns v Merton [1978] AC 728 (Sing. adoption)", CourtLevel.SGHC)
+        self.add_precedent(
+            "RDC Concrete Pte Ltd v Sato Kogyo (S) Pte Ltd [2007] 4 SLR(R) 413", CourtLevel.SGCA
+        )
         self.add_precedent("Old State Courts Ruling on Duty of Care", CourtLevel.STATE_COURTS)
         self.overrule(
             "Old State Courts Ruling on Duty of Care",

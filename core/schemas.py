@@ -26,6 +26,24 @@ class ProximityType(str, Enum):
     NO_PROXIMITY = "no_proximity"
 
 
+class BreachTermType(str, Enum):
+    """Contract term classification per RDC Concrete Pte Ltd v Sato Kogyo
+    (S) Pte Ltd [2007] 4 SLR(R) 413 - determines the right to terminate.
+    """
+
+    CONDITION = "condition"
+    WARRANTY = "warranty"
+    INNOMINATE_TERM = "innominate_term"
+
+
+class SafrVerdict(str, Enum):
+    """W3C-baggage-compatible tri-state MAS SAFR runtime disposition verdict."""
+
+    ALLOW = "ALLOW"
+    DENY = "DENY"
+    ESCALATE = "ESCALATE"
+
+
 class LegalCaseFactPayload(BaseModel):
     """Structured facts extracted from unstructured legal case text.
 
@@ -44,6 +62,12 @@ class LegalCaseFactPayload(BaseModel):
     received_inducement: bool = False
     standard_form_contract: bool = False
     contract_breach_date: Optional[str] = None
+    breach_term_type: Optional[BreachTermType] = None
+    deprived_substantially_whole_benefit: bool = False
+    claim_value_sgd: float = 0.0
+    # GovOps attribute: neural-extraction self-reported confidence, used
+    # only to risk-gate the pipeline (never to decide a legal outcome).
+    extraction_confidence: float = 1.0
 
     @field_validator("contract_breach_date")
     @classmethod
@@ -55,3 +79,15 @@ class LegalCaseFactPayload(BaseModel):
         except ValueError as exc:
             raise ValueError("contract_breach_date must be in YYYY-MM-DD format") from exc
         return value
+
+
+class GovOpsAuditRecord(BaseModel):
+    """GovOps metadata attached to a chat turn for audit / HITL export."""
+
+    trace_id: Optional[str] = None
+    conversation_id: str
+    enduser_id: str
+    safr_disposition: str
+    safr_verdict: SafrVerdict
+    total_tokens: int
+    total_cost_usd: float
