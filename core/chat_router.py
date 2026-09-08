@@ -96,9 +96,14 @@ def _chat_completion(
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+    # gpt-oss on Groq is a reasoning model that shares its completion budget between hidden
+    # reasoning and visible content - cap reasoning effort so content isn't left empty.
+    extra_body = {"reasoning_effort": "low"} if base_url else {}
     response = client.chat.completions.create(
         model=model,
         temperature=0.4,
+        max_tokens=512,
+        extra_body=extra_body,
         messages=[
             {"role": "system", "content": GENERIC_SYSTEM_PROMPT},
             {"role": "user", "content": message},
@@ -115,7 +120,7 @@ def _chat_completion(
 
 
 def _groq_reply(message: str, api_key: str, usage_sink: Optional[dict]) -> str:
-    return _chat_completion(message, api_key, "https://api.groq.com/openai/v1", "llama-3.1-8b-instant", usage_sink)
+    return _chat_completion(message, api_key, "https://api.groq.com/openai/v1", "openai/gpt-oss-20b", usage_sink)
 
 
 def _openai_reply(message: str, api_key: str, usage_sink: Optional[dict]) -> str:

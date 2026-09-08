@@ -35,7 +35,7 @@ millions of examples of full legal reasoning.
 ## Provider priority (all optional - offline mock always works)
 
 1. **Groq** (`GROQ_API_KEY`) — free tier, OpenAI-compatible endpoint,
-   model `llama-3.1-8b-instant`.
+   model `openai/gpt-oss-20b`.
 2. **OpenAI** (`OPENAI_API_KEY`) — `gpt-4o-mini`.
 3. **Anthropic** (`ANTHROPIC_API_KEY`) — `claude-3-5-sonnet-20241022`.
 4. **Offline deterministic mock** — keyword/regex extraction, zero API

@@ -12,7 +12,7 @@ is set):
 
 | Variable | Purpose |
 | --- | --- |
-| `GROQ_API_KEY` | **Free tier.** Enables live Groq (`llama-3.1-8b-instant`) neural parsing and chat replies - tried first |
+| `GROQ_API_KEY` | **Free tier.** Enables live Groq (`openai/gpt-oss-20b`) neural parsing and chat replies - tried first |
 | `OPENAI_API_KEY` | Enables live OpenAI (`gpt-4o-mini`) neural parsing, and the OpenAI moderation endpoint for content safety |
 | `ANTHROPIC_API_KEY` | Enables live Anthropic (`claude-3-5-sonnet`) neural parsing (used if Groq/OpenAI keys absent) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional real OTLP collector (Dynatrace, OTel Collector) in addition to the in-app span viewer |

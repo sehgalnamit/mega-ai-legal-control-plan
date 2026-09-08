@@ -268,7 +268,7 @@ environment to route through a live LLM instead (checked in this
 order):
 
 1. `GROQ_API_KEY` — **free tier**, OpenAI-compatible endpoint, model
-   `llama-3.1-8b-instant`. Get a key at https://console.groq.com/keys.
+   `openai/gpt-oss-20b`. Get a key at https://console.groq.com/keys.
 2. `OPENAI_API_KEY` — `gpt-4o-mini`. Also enables the OpenAI moderation
    endpoint for the content-safety guardrail (otherwise it uses an
    offline regex fallback).

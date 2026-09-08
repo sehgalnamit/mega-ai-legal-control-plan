@@ -354,12 +354,14 @@ def _groq_extract_facts(
     """Free-tier LLM endpoint: Groq exposes an OpenAI-compatible chat API."""
     from openai import OpenAI  # imported lazily so openai stays an optional dependency
 
-    model = "llama-3.1-8b-instant"
+    model = "openai/gpt-oss-20b"
     client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
 
     response = client.chat.completions.create(
         model=model,
         temperature=0,
+        max_tokens=1200,
+        extra_body={"reasoning_effort": "low"},
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},

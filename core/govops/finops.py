@@ -20,7 +20,7 @@ MODEL_PRICING: Dict[str, Dict[str, float]] = {
     "gpt-4o": {"input": 0.0025, "output": 0.010},
     "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
     "claude-3-5-sonnet-20241022": {"input": 0.003, "output": 0.015},
-    "llama-3.1-8b-instant": {"input": 0.0, "output": 0.0},  # Groq free tier
+    "openai/gpt-oss-20b": {"input": 0.0, "output": 0.0},  # Groq free tier
     "mock-offline-parser": {"input": 0.0, "output": 0.0},
     "offline-canned-reply": {"input": 0.0, "output": 0.0},
 }

@@ -10,6 +10,9 @@ import json
 import uuid
 
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from core.chat_router import generate_generic_reply, is_legal_case_message
 from core.domain_router import build_skipped_deduction_notice, classify_domains, is_unmapped_domain
