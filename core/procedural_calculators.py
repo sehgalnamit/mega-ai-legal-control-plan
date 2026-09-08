@@ -85,3 +85,57 @@ def check_liquidated_damages_penalty(
             "rule (extravagant/unconscionable sums are unenforceable)."
         ),
     }
+
+
+# Insolvency, Restructuring and Dissolution Act 2018 (IRDA) ss 224-226
+# (simplified): a transaction at an undervalue is voidable if it falls
+# within the statutory look-back window measured from the winding-up
+# date, and insolvency is statutorily presumed for connected-person
+# (e.g. group/associate) transactions under s 226. Kept as exact
+# date/numeric arithmetic rather than a pyDatalog rule, consistent with
+# the Limitation Act and Denka Advantech penalty calculators above.
+UNDERVALUE_LOOKBACK_YEARS = {True: 3, False: 2}  # connected person vs. unconnected
+
+
+def check_undervalue_transaction(
+    asset_market_value_sgd: float,
+    consideration_paid_sgd: float,
+    is_connected_person: bool,
+    transaction_date_str: str,
+    winding_up_date_str: str,
+) -> Dict[str, object]:
+    """Evaluate an IRDA s 224 transaction-at-undervalue clawback claim."""
+    transaction_date = datetime.strptime(transaction_date_str, "%Y-%m-%d").date()
+    winding_up_date = datetime.strptime(winding_up_date_str, "%Y-%m-%d").date()
+
+    lookback_years = UNDERVALUE_LOOKBACK_YEARS[is_connected_person]
+    try:
+        lookback_cutoff = winding_up_date.replace(year=winding_up_date.year - lookback_years)
+    except ValueError:
+        lookback_cutoff = winding_up_date.replace(month=2, day=28, year=winding_up_date.year - lookback_years)
+
+    within_lookback_window = transaction_date >= lookback_cutoff
+    shortfall_sgd = max(asset_market_value_sgd - consideration_paid_sgd, 0.0)
+    is_undervalue = shortfall_sgd > 0
+    # s 226: insolvency at the time of the transaction is statutorily
+    # presumed for connected-person transactions; otherwise it must be
+    # proven separately (outside this calculator's scope).
+    insolvency_presumed = is_connected_person
+
+    is_voidable_transaction = is_undervalue and within_lookback_window and insolvency_presumed
+
+    return {
+        "asset_market_value_sgd": asset_market_value_sgd,
+        "consideration_paid_sgd": consideration_paid_sgd,
+        "shortfall_sgd": shortfall_sgd,
+        "is_undervalue": is_undervalue,
+        "lookback_years_applicable": lookback_years,
+        "lookback_cutoff_date": lookback_cutoff.isoformat(),
+        "within_lookback_window": within_lookback_window,
+        "insolvency_presumed": insolvency_presumed,
+        "is_voidable_transaction": is_voidable_transaction,
+        "statutory_basis": (
+            "Insolvency, Restructuring and Dissolution Act 2018 (IRDA) ss 224-226 - "
+            "transaction at an undervalue with connected-person insolvency presumption."
+        ),
+    }

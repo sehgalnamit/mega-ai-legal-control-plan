@@ -250,7 +250,7 @@
         "Insolvency, Restructuring and Dissolution Act 2018 (IRDA)"
       ],
       "precedents": [],
-      "rule_module": null,
+      "rule_module": "core.procedural_calculators",
       "sub_domains": [
         {
           "name": "corporate_insolvency",
@@ -259,8 +259,8 @@
         },
         {
           "name": "voidable_transactions",
-          "keywords": ["unfair preference", "undervalue transaction", "extortionate credit"],
-          "implemented": false
+          "keywords": ["unfair preference", "undervalue transaction", "extortionate credit", "claw back", "clawback"],
+          "implemented": true
         },
         {
           "name": "personal_bankruptcy",

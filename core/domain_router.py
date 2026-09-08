@@ -19,6 +19,7 @@ KNOWN_DOMAINS = (
     "contract_term_breach",  # RDC Concrete term classification
     "employment_restraint_of_trade",  # Man Financial two-tier test
     "liquidated_damages_penalty",  # Denka Advantech penalty rule
+    "insolvency_undervalue_transaction",  # IRDA 2018 ss 224-226
 )
 
 
@@ -36,6 +37,14 @@ def classify_domains(payload: LegalCaseFactPayload) -> List[str]:
         domains.append("employment_restraint_of_trade")
     if payload.monthly_salary_sgd is not None and payload.liquidated_damages_sgd is not None:
         domains.append("liquidated_damages_penalty")
+    if (
+        payload.has_insolvency_clawback_claim
+        and payload.asset_market_value_sgd is not None
+        and payload.consideration_paid_sgd is not None
+        and payload.transaction_date is not None
+        and payload.winding_up_date is not None
+    ):
+        domains.append("insolvency_undervalue_transaction")
 
     return domains
 

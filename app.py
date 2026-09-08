@@ -35,7 +35,11 @@ from core.govops.tracer import (
 )
 from core.graph_gate import check_precedent_status
 from core.neural_parser import parse_legal_case_text
-from core.procedural_calculators import check_limitation_period, check_liquidated_damages_penalty
+from core.procedural_calculators import (
+    check_limitation_period,
+    check_liquidated_damages_penalty,
+    check_undervalue_transaction,
+)
 from core.provisional_analysis import generate_provisional_analysis
 from core.response_renderer import render_legal_advice_summary
 from core.safety.content_moderation import check_content_safety
@@ -120,6 +124,7 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
     deduction = None
     limitation = None
     penalty_check = None
+    undervalue_check = None
     provisional_text = None
     unmapped_domain_analysis = None
     matched_domains = []
@@ -146,6 +151,22 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
             with start_worker_span("penalty_clause_calculator", "execute_tool", "procedural_calculator"):
                 penalty_check = check_liquidated_damages_penalty(
                     payload.monthly_salary_sgd, payload.liquidated_damages_sgd
+                )
+
+        if (
+            payload.has_insolvency_clawback_claim
+            and payload.asset_market_value_sgd is not None
+            and payload.consideration_paid_sgd is not None
+            and payload.transaction_date is not None
+            and payload.winding_up_date is not None
+        ):
+            with start_worker_span("undervalue_transaction_calculator", "execute_tool", "procedural_calculator"):
+                undervalue_check = check_undervalue_transaction(
+                    payload.asset_market_value_sgd,
+                    payload.consideration_paid_sgd,
+                    payload.is_connected_person,
+                    payload.transaction_date,
+                    payload.winding_up_date,
                 )
 
         if unmapped:
@@ -190,6 +211,7 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
             limitation,
             graph_result,
             penalty_check=penalty_check,
+            undervalue_check=undervalue_check,
             additional_graph_results=additional_graph_results,
         )
         if safr_result.disposition == SafrDisposition.ESCALATE:
@@ -207,6 +229,7 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
         "symbolic_deduction": deduction,
         "limitation_check": limitation,
         "penalty_check": penalty_check,
+        "undervalue_transaction_check": undervalue_check,
         "provisional_analysis": provisional_text,
     }
     safr_panel_fields = {

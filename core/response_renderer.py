@@ -17,6 +17,7 @@ def render_legal_advice_summary(
     limitation: Optional[Dict[str, Any]],
     graph_result: Dict[str, Any],
     penalty_check: Optional[Dict[str, Any]] = None,
+    undervalue_check: Optional[Dict[str, Any]] = None,
     additional_graph_results: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """Format already-computed verdicts into readable prose."""
@@ -91,6 +92,22 @@ def render_legal_advice_summary(
             lines.append(
                 "The liquidated damages clause **is enforceable** as a genuine pre-estimate "
                 "of loss under *Denka Advantech Pte Ltd v Tan Yuanyuan* [2020] 2 SLR 1155."
+            )
+
+    if undervalue_check is not None:
+        if undervalue_check["is_voidable_transaction"]:
+            lines.append(
+                "The transfer **is voidable as a transaction at an undervalue** under IRDA "
+                f"2018 ss 224-226 — consideration of S${undervalue_check['consideration_paid_sgd']:,.0f} "
+                f"fell short of the S${undervalue_check['asset_market_value_sgd']:,.0f} market value by "
+                f"S${undervalue_check['shortfall_sgd']:,.0f}, within the "
+                f"{undervalue_check['lookback_years_applicable']}-year look-back window, with insolvency "
+                "presumed for a connected-person transaction."
+            )
+        else:
+            lines.append(
+                "The transfer **does not meet the test** for a voidable transaction at an "
+                "undervalue under IRDA 2018 ss 224-226 on these facts."
             )
 
     # Only relevant for tort-flavoured disputes (an injury type or asserted

@@ -76,11 +76,18 @@ class LegalCaseFactPayload(BaseModel):
     # Yuanyuan [2020] 2 SLR 1155).
     monthly_salary_sgd: Optional[float] = None
     liquidated_damages_sgd: Optional[float] = None
+    # Insolvency clawback: transaction at an undervalue (IRDA 2018 ss 224-226).
+    has_insolvency_clawback_claim: bool = False
+    asset_market_value_sgd: Optional[float] = None
+    consideration_paid_sgd: Optional[float] = None
+    is_connected_person: bool = False
+    transaction_date: Optional[str] = None
+    winding_up_date: Optional[str] = None
     # GovOps attribute: neural-extraction self-reported confidence, used
     # only to risk-gate the pipeline (never to decide a legal outcome).
     extraction_confidence: float = 1.0
 
-    @field_validator("contract_breach_date")
+    @field_validator("contract_breach_date", "transaction_date", "winding_up_date")
     @classmethod
     def _validate_breach_date(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
@@ -88,7 +95,7 @@ class LegalCaseFactPayload(BaseModel):
         try:
             date.fromisoformat(value)
         except ValueError as exc:
-            raise ValueError("contract_breach_date must be in YYYY-MM-DD format") from exc
+            raise ValueError("date fields must be in YYYY-MM-DD format") from exc
         return value
 
 

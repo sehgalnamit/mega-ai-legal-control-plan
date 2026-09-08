@@ -55,6 +55,12 @@ single lookup/threshold check (as with non-compete duration caps).
   greatest conceivable loss) is exact arithmetic, not an open-textured
   multi-factor test, so it follows the same "procedural, not symbolic"
   principle as the Limitation Act calculator.
+- **IRDA transaction at an undervalue** (Insolvency, Restructuring and
+  Dissolution Act 2018 ss 224-226): also in
+  `core/procedural_calculators.py` - a date look-back window (3 years
+  for connected persons, 2 otherwise) plus a numeric consideration-vs-
+  market-value shortfall check, with insolvency statutorily presumed
+  for connected-person transactions.
 - **Non-compete duration cap** (`engine/symbolic_rules.py`): a per-
   jurisdiction lookup table (Singapore 12 months, California barred
   outright, etc.).

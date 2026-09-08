@@ -208,6 +208,37 @@ def _mock_extract_facts(case_text: str, case_id: str) -> dict:
 
     liquidated_damages_sgd = _parse_currency_amount(case_text, r"(?:liquidated damages|fixed penalty)")
 
+    has_insolvency_clawback_claim = any(
+        k in text
+        for k in ("claw back", "clawback", "transaction at an undervalue", "irda", "voidable transaction", "unfair preference")
+    )
+
+    asset_market_value_sgd: Optional[float] = None
+    consideration_paid_sgd: Optional[float] = None
+    is_connected_person = False
+    transaction_date: Optional[str] = None
+    winding_up_date: Optional[str] = None
+    if has_insolvency_clawback_claim:
+        asset_market_value_sgd = _parse_currency_amount(case_text, r"worth")
+        for_match = re.search(
+            rf"\bfor\s+s\$\s?([\d,]+(?:\.\d+)?)\s*{_CURRENCY_SUFFIX_PATTERN}\b", case_text, re.IGNORECASE
+        )
+        if for_match:
+            for_multiplier = _CURRENCY_MULTIPLIERS.get((for_match.group(2) or "").lower(), 1)
+            consideration_paid_sgd = float(for_match.group(1).replace(",", "")) * for_multiplier
+
+        is_connected_person = any(
+            k in text
+            for k in ("% parent", "wholly-owned", "wholly owned", "connected person", "related party", "associate company")
+        )
+
+        winding_up_match = re.search(r"wound up on (\d{4}-\d{2}-\d{2})", text)
+        winding_up_date = winding_up_match.group(1) if winding_up_match else None
+
+        all_dates = re.findall(r"\d{4}-\d{2}-\d{2}", case_text)
+        remaining_dates = [d for d in all_dates if d != winding_up_date]
+        transaction_date = remaining_dates[0] if remaining_dates else None
+
     breach_match = re.search(r"(\d{4}-\d{2}-\d{2})", case_text)
     contract_breach_date = breach_match.group(1) if breach_match else None
 
@@ -244,6 +275,12 @@ def _mock_extract_facts(case_text: str, case_id: str) -> dict:
         "restraint_geography_scope": restraint_geography_scope,
         "monthly_salary_sgd": monthly_salary_sgd,
         "liquidated_damages_sgd": liquidated_damages_sgd,
+        "has_insolvency_clawback_claim": has_insolvency_clawback_claim,
+        "asset_market_value_sgd": asset_market_value_sgd,
+        "consideration_paid_sgd": consideration_paid_sgd,
+        "is_connected_person": is_connected_person,
+        "transaction_date": transaction_date,
+        "winding_up_date": winding_up_date,
         "extraction_confidence": 0.65,
     }
 
