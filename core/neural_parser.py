@@ -56,12 +56,29 @@ STRICT RULES:
 5. `factual_foreseeability`, `proximity_type`, and `injury_type` feed
    ONLY the Spandeck tort/negligence duty-of-care test. Set
    `factual_foreseeability` to true and populate `injury_type` ONLY if
-   the text pleads a tortious duty-of-care/negligence claim. A pure
-   contract dispute (breach of an express term, termination, contractual
-   damages) is NOT a tort claim - leave `factual_foreseeability` false
-   and `injury_type` null even if the contractual breach or its
-   consequences were foreseeable in the ordinary sense, unless a
-   negligence claim is separately and explicitly pleaded.
+   the text pleads a common-law negligence/duty-of-care claim. Statutory
+   claims - a pure contract dispute, a POHA harassment/stalking claim, an
+   insolvency/IRDA clawback, or a restraint-of-trade clause - are NOT
+   tort claims. Leave `factual_foreseeability` false and `injury_type`
+   null for those, even if the facts describe foreseeable harm, alarm,
+   distress, or fear, unless negligence/duty of care is separately and
+   explicitly pleaded.
+6. POHA harassment fields - set these from the plain facts described,
+   independently of whether you think a Protection Order should
+   ultimately be granted (that legal conclusion is for the symbolic
+   engine, not you):
+   - `has_harassment_claim`: true if the case describes harassment,
+     stalking, doxxing, or invokes the Protection from Harassment Act.
+   - `publishes_identifying_information`: true if the perpetrator
+     published/exposed the victim's identifying details (phone number,
+     home/residential address, photos, workplace, full name), online or
+     otherwise.
+   - `urges_third_party_harassment`: true if the text describes the
+     perpetrator inciting, urging, or encouraging other people/
+     subscribers/followers to contact, confront, or harass the victim.
+   - `causes_alarm_distress_or_fear`: true if the victim is described as
+     experiencing alarm, distress, fear, or a threat to personal safety
+     as a result.
 """
 
 
