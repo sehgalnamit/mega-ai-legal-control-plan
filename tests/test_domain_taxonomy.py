@@ -50,6 +50,16 @@ def test_classify_ip_dispute():
     assert any(d.domain == SingaporeLegalDomain.IP_TECHNOLOGY for d in matches)
 
 
+def test_classify_crypto_asset_dispute():
+    text = (
+        "A digital payment token exchange inadvertently transferred USDT into the defendant's "
+        "exchange wallet, who moved it to an unhosted cold wallet."
+    )
+    matches = classify_singapore_legal_domains(text)
+
+    assert any(d.domain == SingaporeLegalDomain.BANKING_FINANCE for d in matches)
+
+
 def test_classify_criminal_dispute():
     text = "The accused is charged under the Penal Code for criminal breach of trust and cheating."
     matches = classify_singapore_legal_domains(text)

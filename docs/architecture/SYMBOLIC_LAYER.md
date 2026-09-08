@@ -1,7 +1,10 @@
 # Symbolic Layer (Declarative Deduction)
 
 **Files:** [`core/symbolic_engine.py`](../../core/symbolic_engine.py),
-[`engine/symbolic_rules.py`](../../engine/symbolic_rules.py)
+[`engine/symbolic_rules.py`](../../engine/symbolic_rules.py),
+[`core/domain_router.py`](../../core/domain_router.py),
+[`core/domain_taxonomy.py`](../../core/domain_taxonomy.py),
+[`core/provisional_analysis.py`](../../core/provisional_analysis.py)
 
 ## Role
 
@@ -88,3 +91,32 @@ correctly flagged as unenforceable.
 - **Auditability:** every assert/deduce step is recorded — see
   `core/symbolic_engine.run_symbolic_deduction`'s `proof_trace`, and
   `audit/proof_tracer.py` for the ontology-layer equivalent.
+
+## Domain routing & open-world fallback
+
+Singapore law is not a closed set of statutes, and this repo does not
+pretend to have deterministic rules for every domain. Before the
+symbolic engine's output is trusted, two routers gate it:
+
+1. **`core/domain_router.classify_domains(payload)`** — narrow,
+   payload-field-based check of whether the case actually engages one
+   of the rule domains *implemented in this repo* (tort, UCTA, RDC
+   Concrete, restraint of trade, penalty). If it engages **none** of
+   them, `is_unmapped_domain(payload)` returns `True`.
+2. **`core/domain_taxonomy.classify_singapore_legal_domains(raw_text)`**
+   — broad, text-based classification against the full 13-domain
+   Singapore legal taxonomy (see [ONTOLOGY.md](ONTOLOGY.md)), used only
+   to *ground* the fallback response with the right statutes/precedents
+   once a case is already known to be unmapped.
+
+When unmapped, `core/domain_taxonomy.build_unmapped_domain_response()`
+returns an explicit `UNMAPPED_DOMAIN_PROVISIONAL_ANALYSIS` payload
+(`safr_action: "ESCALATE_TO_HUMAN"`, `confidence: 0.0`) instead of
+throwing an exception or silently defaulting to an unrelated rule like
+Spandeck. `core/provisional_analysis.generate_provisional_analysis()`
+then drafts an LLM analysis grounded in the matched statutes/precedents
+- always prefixed with the literal banner
+`"PROVISIONAL ANALYSIS - NOT A VERDICT - REQUIRES HUMAN LEGAL REVIEW"`
+so it can never be mistaken for the deterministic engine's output. See
+`core/govops/safr_envelope.py`'s `UNMAPPED_DOMAIN` risk flag, which
+forces `ESCALATE` whenever this path is taken.

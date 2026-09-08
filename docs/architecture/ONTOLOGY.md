@@ -2,6 +2,8 @@
 
 **Files:** [`core/schemas.py`](../../core/schemas.py),
 [`schemas/legal_ontology.py`](../../schemas/legal_ontology.py),
+[`core/domain_taxonomy.py`](../../core/domain_taxonomy.py),
+[`core/data/singapore_legal_domains.json`](../../core/data/singapore_legal_domains.json),
 [`audit/proof_tracer.py`](../../audit/proof_tracer.py)
 
 ## Role
@@ -12,16 +14,18 @@ it) and the symbolic layer (which reads it) — neither layer can drift
 out of sync with the other because both are typed against the same
 Pydantic models.
 
-Two ontologies exist side by side, deliberately kept separate:
+Three ontologies exist side by side, deliberately kept separate:
 
 | Ontology | Scope | Consumed by |
 | --- | --- | --- |
-| `core/schemas.py` (`LegalCaseFactPayload`) | Singapore tort/UCTA/RDC Concrete fact payload, plus GovOps audit fields | `core.symbolic_engine`, `app.py` |
+| `core/schemas.py` (`LegalCaseFactPayload`) | Singapore tort/UCTA/RDC Concrete/restraint-of-trade/penalty fact payload, plus GovOps audit fields | `core.symbolic_engine`, `app.py` |
 | `schemas/legal_ontology.py` (`Contract`, `Clause`, `Entity`, `Obligation`) | Jurisdiction-agnostic contract/clause model | `engine.symbolic_rules`, `parsers.neural_extractor` |
+| `core/domain_taxonomy.py` (`SingaporeLegalDomain`) | The full 13-domain Singapore legal matter-type taxonomy (a SALI-style classification, not a fact schema) | `core.domain_taxonomy.classify_singapore_legal_domains`, `app.py`'s unmapped-domain fallback |
 
 This mirrors how real legal-tech ontology projects are structured: a
-narrow, statute-specific schema for a shipped product feature, and a
-broader general-purpose ontology for extensibility.
+narrow, statute-specific schema for a shipped product feature, a
+broader general-purpose ontology for extensibility, and a top-level
+matter-type taxonomy for routing/classification.
 
 ## Prior art: Singapore's open-source legal computation ecosystem
 
@@ -51,7 +55,15 @@ pluggable with:
   taxonomy for legal matter types, document categories, and clause
   tags. `ClauseType` in `schemas/legal_ontology.py` is intentionally a
   small, extensible enum that could be superseded by SALI's clause
-  taxonomy without touching the rule engine's logic.
+  taxonomy without touching the rule engine's logic. `SingaporeLegalDomain`
+  in `core/domain_taxonomy.py` plays the same role at the matter-type
+  level: its 13 domains (commercial contract, employment, tort,
+  consumer/sale of goods, real estate, corporate, insolvency, IP/tech,
+  banking/fintech, family, criminal, public/administrative, procedural)
+  are exactly the kind of top-level taxonomy SALI standardizes, and
+  `core/data/singapore_legal_domains.json` is the JSON knowledge base
+  that could be swapped for a SALI-conformant mapping without touching
+  the classifier code.
 
 ## Validation: why symbolic rules + smaller datasets
 
@@ -90,3 +102,8 @@ pluggable with:
 - Every field the neural layer can populate is enumerated here — the
   symbolic layer can never "invent" a new fact type at runtime; it can
   only apply rules to what the ontology already defines.
+- `core/domain_taxonomy.py`'s `DomainInfo.is_covered` flag is the single
+  source of truth for which of the 13 domains have a real deterministic
+  `rule_module` today vs. which fall through to the
+  `UNMAPPED_DOMAIN_PROVISIONAL_ANALYSIS` fallback described in
+  [SYMBOLIC_LAYER.md](SYMBOLIC_LAYER.md#domain-routing--open-world-fallback).

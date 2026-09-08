@@ -11,13 +11,21 @@ Anthropic -> a deterministic offline canned reply.
 from __future__ import annotations
 
 import os
+import re
 from typing import Optional
+
+from core.domain_taxonomy import classify_singapore_legal_domains
 
 _LEGAL_CASE_KEYWORDS = (
     "breach", "contract", "clause", "duty of care", "tort", "damages", "liability",
     "exemption", "warranty", "condition", "lease", "landlord", "tenant", "negligence",
     "terminate", "limitation act", "precedent", "sue", "lawsuit", "dispute", "non-compete",
 )
+
+# Word-boundary regexes - plain substring checks would false-positive on
+# ordinary words like "approac-HI-ng" or "t-HEY" ("they").
+_GREETING_RE = re.compile(r"\b(hello|hi|hey)\b", re.IGNORECASE)
+_HELP_RE = re.compile(r"\bhelp\b|what can you do", re.IGNORECASE)
 
 GENERIC_SYSTEM_PROMPT = """You are the Mega AI Singapore Legal Control Plane assistant.
 For casual conversation, be brief, friendly, and helpful. You must NEVER
@@ -28,10 +36,19 @@ deterministic legal pipeline can evaluate it instead.
 
 
 def is_legal_case_message(text: str) -> bool:
-    """Heuristic classifier: does this message describe a legal case/dispute?"""
+    """Heuristic classifier: does this message describe a legal case/dispute?
+
+    Combines a narrow tort/UCTA/RDC-Concrete keyword list with the full
+    13-domain Singapore legal taxonomy (`core.domain_taxonomy`), so cases
+    outside the narrow list (e.g. strata/BMSMA, trade secrets, insolvency,
+    crypto/fintech) still get routed to the deterministic pipeline instead
+    of a generic chat reply - even when no rule module is loaded for them.
+    """
     lowered = text.lower()
     hits = sum(1 for kw in _LEGAL_CASE_KEYWORDS if kw in lowered)
-    return hits >= 2 or (len(text.split()) > 40 and hits >= 1)
+    if hits >= 2 or (len(text.split()) > 40 and hits >= 1):
+        return True
+    return bool(classify_singapore_legal_domains(text))
 
 
 def generate_generic_reply(message: str, usage_sink: Optional[dict] = None) -> str:
@@ -59,12 +76,12 @@ def _offline_reply(message: str, usage_sink: Optional[dict]) -> str:
             output_tokens=10,
         )
     lowered = message.lower().strip()
-    if any(greeting in lowered for greeting in ("hello", "hi", "hey")):
+    if _GREETING_RE.search(lowered):
         return (
             "Hello! I'm the Mega AI legal control plane assistant. Describe a dispute "
             "and I'll run it through the deterministic pipeline, or just chat with me."
         )
-    if "help" in lowered or "what can you do" in lowered:
+    if _HELP_RE.search(lowered):
         return (
             "I can chat, or analyze a legal dispute (e.g. a lease/aircon breach, a tort claim, "
             "or a non-compete clause) through a neuro-symbolic pipeline: neural fact extraction, "

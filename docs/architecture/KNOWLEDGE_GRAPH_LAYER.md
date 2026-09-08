@@ -14,6 +14,7 @@ filtering (graph traversal) and exact calendar arithmetic. Both run
 | --- | --- | --- |
 | `core/graph_gate.py` | `check_precedent_status()` — traverses a *stare decisis* hierarchy (State Courts → SGHC → SGCA) and flags `OVERRULED` precedents | Context filtering only — never decides the case, only whether a cited authority is still good law |
 | `core/procedural_calculators.py` | `check_limitation_period()` — Limitation Act 1959 s.6(1)(a) 6-year window from breach date | Exact date arithmetic, not an LLM estimate |
+| `core/procedural_calculators.py` | `check_liquidated_damages_penalty()` — Denka Advantech penalty rule: liquidated sum vs. a salary-based proxy for the greatest conceivable loss | Exact numeric comparison, not an open-textured multi-factor test |
 
 ## Why "knowledge graph is context, not reasoning"
 

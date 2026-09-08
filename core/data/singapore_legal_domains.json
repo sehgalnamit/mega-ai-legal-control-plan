@@ -328,7 +328,11 @@
         },
         {
           "name": "fintech_and_digital_assets",
-          "keywords": ["payment services act", "cryptocurrency", "crypto-asset", "digital asset"],
+          "keywords": [
+            "payment services act", "cryptocurrency", "crypto-asset", "digital asset",
+            "digital payment token", "cold wallet", "unhosted wallet", "crypto wallet",
+            "cryptocurrency exchange", "virtual asset", "usdt", "stablecoin"
+          ],
           "implemented": false
         }
       ]

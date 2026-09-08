@@ -29,7 +29,11 @@ flowchart LR
     U["Chat message"] --> M["Content-safety guardrail
 core/safety"]
     M -- unsafe --> D["🚫 Denied"]
-    M -- safe --> R["Chat router
+    M -- safe --> FP{"Follow-up fact patch?
+core/followup_intent.py"}
+    FP -- yes --> PT["Patch previous payload
+& re-evaluate"]
+    FP -- no --> R["Chat router
 core/chat_router.py"]
     R -- generic chat --> G["Conversational reply
 (LLM, no verdict)"]
@@ -40,15 +44,25 @@ parsers/neural_extractor.py"]
 LegalCaseFactPayload / Contract"| O["Ontology
 core/schemas.py
 schemas/legal_ontology.py"]
+    PT --> O
+    O --> EV["Extraction validator
+core/govops/extraction_validator.py"]
     O --> KG["Knowledge Graph / Deterministic
 core/graph_gate.py
 core/procedural_calculators.py"]
-    O --> S["Symbolic layer
+    EV --> DR{"Known rule domain?
+core/domain_router.py"}
+    DR -- yes --> S["Symbolic layer
 core/symbolic_engine.py
 engine/symbolic_rules.py"]
+    DR -- "no (unmapped)" --> PA["Provisional LLM analysis
+core/domain_taxonomy.py
+core/provisional_analysis.py"]
     KG -->|"stare decisis warning +
 limitation expiry"| V["Verdict + proof trace"]
     S -->|"deterministic verdict"| V
+    PA -->|"UNMAPPED_DOMAIN_PROVISIONAL_ANALYSIS
+(labeled, non-binding)"| V
     V --> A["GovOps: trace, FinOps, SAFR, audit log
 core/govops/"]
 ```
@@ -225,6 +239,9 @@ render:
 
 A session-wide **audit log** (all turns, verdicts, and telemetry) can be
 downloaded as JSON once you check the HITL approval box.
+
+For a guided walkthrough with data flow diagrams and a step-by-step demo
+script, see [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
 
 ### General-purpose ontology demo (non-compete clauses)
 
