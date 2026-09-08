@@ -97,6 +97,18 @@ neither layer can silently drift out of sync with the other.
     to trade secrets?") and re-evaluates the *previous* turn's payload
     with the patched fact, instead of re-parsing a brand new case from
     an incomplete follow-up message.
+11. **Full 13-domain Singapore legal taxonomy for classification.**
+    `core/domain_taxonomy.py` (backed by
+    `core/data/singapore_legal_domains.json`) defines the
+    `SingaporeLegalDomain` enum spanning all 13 substantive/procedural
+    domains (commercial contract, employment, tort, consumer/sale of
+    goods, real estate, corporate, insolvency, IP/tech, banking/fintech,
+    family, criminal, public/administrative, and procedural
+    jurisdiction), each with its statutory codes and precedents. Only a
+    handful of sub-domains have real deterministic rule coverage today
+    (see `is_covered`/`rule_module` per domain) — for everything else,
+    the taxonomy grounds the `UNMAPPED_DOMAIN_PROVISIONAL_ANALYSIS`
+    fallback with the correct statutes/precedents instead of guessing.
 
 ## Validation: Why Symbolic Rules + Smaller Datasets
 
@@ -136,6 +148,9 @@ international **LKIF** and **SALI** ontology frameworks.
 │   ├── neural_parser.py           # Groq (free) / OpenAI / Anthropic / offline mock fact extractor
 │   ├── chat_router.py             # Legal-case vs. generic-chat routing + generic LLM reply
 │   ├── domain_router.py           # Classifies known rule domains / flags UNMAPPED_DOMAIN
+│   ├── domain_taxonomy.py         # Full 13-domain SG legal taxonomy + UNMAPPED_DOMAIN_PROVISIONAL_ANALYSIS
+│   ├── data/
+│   │   └── singapore_legal_domains.json  # Domain -> statutory codes / precedents / sub-domain keywords
 │   ├── provisional_analysis.py    # Labeled provisional LLM draft for unmapped-domain escalations
 │   ├── followup_intent.py         # Multi-turn HITL fact-patch detector ("what if X?")
 │   ├── graph_gate.py              # Neo4j/NetworkX precedent hierarchy gate

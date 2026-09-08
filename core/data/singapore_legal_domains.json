@@ -1,0 +1,453 @@
+{
+  "domains": [
+    {
+      "domain": "commercial_contract",
+      "label": "Commercial, Contract & Obligations",
+      "statutory_codes": [
+        "Misrepresentation Act (Cap 390)",
+        "Evidence Act 1893 ss 93-94 (parol evidence rule)",
+        "Unfair Contract Terms Act (Cap 396)"
+      ],
+      "precedents": [
+        "RDC Concrete Pte Ltd v Sato Kogyo (S) Pte Ltd [2007] 4 SLR(R) 413",
+        "Sembcorp Marine Ltd v PPL Holdings Pte Ltd [2013] 4 SLR 193",
+        "Denka Advantech Pte Ltd v Tan Yuanyuan [2020] 2 SLR 1155",
+        "Sports Connection Pte Ltd v Deuter Sports GmbH [2009] 3 SLR(R) 883",
+        "Hadley v Baxendale (1854) 9 Exch 341"
+      ],
+      "rule_module": "core.symbolic_engine, core.procedural_calculators",
+      "sub_domains": [
+        {
+          "name": "contract_formation_and_vitiation",
+          "keywords": ["misrepresentation", "economic duress", "undue influence", "unconscionable", "unconscionability", "consideration", "intention to create legal relations", "mistake"],
+          "implemented": false
+        },
+        {
+          "name": "interpretation_and_terms",
+          "keywords": ["implied term", "collateral contract", "parol evidence", "entire agreement clause", "non-reliance clause"],
+          "implemented": false
+        },
+        {
+          "name": "exemption_and_standard_terms",
+          "keywords": ["exemption clause", "exclusion clause", "standard form", "unfair contract terms act", "ucta"],
+          "implemented": true
+        },
+        {
+          "name": "breach_and_termination",
+          "keywords": ["condition", "warranty", "innominate term", "discharge by breach", "repudiation", "right to terminate"],
+          "implemented": true
+        },
+        {
+          "name": "remedies_and_restitution",
+          "keywords": ["expectation loss", "reliance loss", "remoteness", "mitigation", "liquidated damages", "penalty clause", "unjust enrichment", "quantum meruit"],
+          "implemented": true
+        }
+      ]
+    },
+    {
+      "domain": "employment_law",
+      "label": "Employment, Labor & Restraints",
+      "statutory_codes": [
+        "Employment Act 1968 (Cap 91)",
+        "Work Injury Compensation Act 2019 (WICA)",
+        "Workplace Safety and Health Act (WSHA)",
+        "Trade Unions Act (Cap 333)",
+        "Industrial Relations Act (Cap 136)"
+      ],
+      "precedents": [
+        "Man Financial (S) Pte Ltd v Wong Bark Chuan David [2008] 1 SLR(R) 663",
+        "Clearlab SG Pte Ltd v Ting Chong Chai [2015] 1 SLR 163"
+      ],
+      "rule_module": "core.symbolic_engine, core.procedural_calculators",
+      "sub_domains": [
+        {
+          "name": "restrictive_covenants",
+          "keywords": ["restraint of trade", "non-compete", "non-solicitation", "non-poach", "blue-pencil", "blue pencil", "garden leave"],
+          "implemented": true
+        },
+        {
+          "name": "statutory_employment_rights",
+          "keywords": ["employment act", "overtime", "retrenchment", "summary dismissal", "termination notice"],
+          "implemented": false
+        },
+        {
+          "name": "confidentiality_and_trade_secrets",
+          "keywords": ["breach of confidence", "trade secret", "springboard injunction", "spring-boarding"],
+          "implemented": false
+        },
+        {
+          "name": "workplace_health_and_injury",
+          "keywords": ["work injury compensation", "wica", "workplace safety", "wsha", "occupational injury"],
+          "implemented": false
+        },
+        {
+          "name": "industrial_relations_and_unions",
+          "keywords": ["trade union", "industrial relations", "collective bargaining"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "tort_law",
+      "label": "Law of Torts & Civil Wrongs",
+      "statutory_codes": [
+        "Defamation Act 1965 (Cap 75)",
+        "Protection from Harassment Act 2014 (POHA)"
+      ],
+      "precedents": [
+        "Spandeck Engineering (S) Pte Ltd v Defence Science & Technology Agency [2007] 4 SLR(R) 100",
+        "Hii Chii Kok v Ooi Peng Jin London Lucien [2017] 2 SLR 492",
+        "Hedley Byrne & Co Ltd v Heller & Partners Ltd [1964] AC 465"
+      ],
+      "rule_module": "core.symbolic_engine",
+      "sub_domains": [
+        {
+          "name": "negligence_and_economic_loss",
+          "keywords": ["duty of care", "negligence", "breach of duty", "causation", "but-for test", "pure economic loss", "spandeck"],
+          "implemented": true
+        },
+        {
+          "name": "professional_malpractice",
+          "keywords": ["medical negligence", "malpractice", "bolam", "bolitho", "professional negligence"],
+          "implemented": false
+        },
+        {
+          "name": "misrepresentation_in_tort",
+          "keywords": ["negligent misstatement", "hedley byrne"],
+          "implemented": false
+        },
+        {
+          "name": "nuisance_and_occupiers_liability",
+          "keywords": ["nuisance", "occupier's liability", "occupiers liability"],
+          "implemented": false
+        },
+        {
+          "name": "defamation",
+          "keywords": ["defamation", "libel", "slander", "qualified privilege", "fair comment"],
+          "implemented": false
+        },
+        {
+          "name": "economic_torts",
+          "keywords": ["inducing breach of contract", "unlawful means conspiracy", "intimidation", "passing off"],
+          "implemented": false
+        },
+        {
+          "name": "statutory_and_intentional_torts",
+          "keywords": ["harassment", "protection from harassment", "poha", "conversion", "trespass"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "consumer_sale_of_goods",
+      "label": "Sale of Goods & Consumer Protection",
+      "statutory_codes": [
+        "Sale of Goods Act 1979 (Cap 393)",
+        "Unfair Contract Terms Act (Cap 396) s 6",
+        "Consumer Protection (Fair Trading) Act 2003 (Cap 52A)",
+        "Supply of Goods Act 1982 (Cap 394)"
+      ],
+      "precedents": [],
+      "rule_module": null,
+      "sub_domains": [
+        {
+          "name": "statutory_implied_conditions",
+          "keywords": ["sale of goods act", "satisfactory quality", "fitness for purpose", "merchantable quality"],
+          "implemented": false
+        },
+        {
+          "name": "exclusion_control",
+          "keywords": ["exclusion of implied terms"],
+          "implemented": false
+        },
+        {
+          "name": "consumer_guarantees",
+          "keywords": ["lemon law", "consumer protection", "fair trading act", "cpfta", "unfair practice"],
+          "implemented": false
+        },
+        {
+          "name": "supply_of_services",
+          "keywords": ["supply of goods act", "supply of services"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "real_estate_property",
+      "label": "Real Estate, Tenancy & Property",
+      "statutory_codes": [
+        "Land Titles Act 1993 (Cap 157)",
+        "Building Maintenance and Strata Management Act 2004 (BMSMA)",
+        "Distress Act (Cap 84)"
+      ],
+      "precedents": [],
+      "rule_module": null,
+      "sub_domains": [
+        {
+          "name": "commercial_and_residential_leases",
+          "keywords": ["tenancy", "lease", "quiet enjoyment", "forfeiture", "re-entry", "security deposit", "distress"],
+          "implemented": false
+        },
+        {
+          "name": "land_titles_and_conveyancing",
+          "keywords": ["land titles act", "caveat", "option to purchase", "conveyancing"],
+          "implemented": false
+        },
+        {
+          "name": "strata_management",
+          "keywords": ["strata", "mcst", "bmsma", "management corporation", "by-law"],
+          "implemented": false
+        },
+        {
+          "name": "mortgages_and_security",
+          "keywords": ["mortgage", "foreclosure", "power of sale", "equity of redemption"],
+          "implemented": false
+        },
+        {
+          "name": "co_ownership_and_trusts",
+          "keywords": ["joint tenancy", "tenancy in common", "resulting trust", "constructive trust"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "corporate_law",
+      "label": "Corporate, Partnership & Commercial Entities",
+      "statutory_codes": [
+        "Companies Act 1967 (Cap 50)",
+        "Partnership Act 1890",
+        "Limited Liability Partnerships Act 2005"
+      ],
+      "precedents": [],
+      "rule_module": null,
+      "sub_domains": [
+        {
+          "name": "directors_duties_and_governance",
+          "keywords": ["director's duties", "directors duties", "fiduciary duty", "companies act", "business judgment rule"],
+          "implemented": false
+        },
+        {
+          "name": "shareholder_rights_and_remedies",
+          "keywords": ["minority oppression", "derivative action", "shareholder dispute"],
+          "implemented": false
+        },
+        {
+          "name": "partnership_and_llps",
+          "keywords": ["partnership act", "limited liability partnership"],
+          "implemented": false
+        },
+        {
+          "name": "mergers_and_acquisitions",
+          "keywords": ["takeover", "share purchase agreement", "merger", "acquisition"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "insolvency_restructuring",
+      "label": "Insolvency, Restructuring & Debt Recovery",
+      "statutory_codes": [
+        "Insolvency, Restructuring and Dissolution Act 2018 (IRDA)"
+      ],
+      "precedents": [],
+      "rule_module": null,
+      "sub_domains": [
+        {
+          "name": "corporate_insolvency",
+          "keywords": ["liquidation", "judicial management", "scheme of arrangement", "irda", "winding up"],
+          "implemented": false
+        },
+        {
+          "name": "voidable_transactions",
+          "keywords": ["unfair preference", "undervalue transaction", "extortionate credit"],
+          "implemented": false
+        },
+        {
+          "name": "personal_bankruptcy",
+          "keywords": ["bankruptcy", "debt repayment scheme", "proof of debt"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "ip_technology",
+      "label": "Intellectual Property & Technology",
+      "statutory_codes": [
+        "Trade Marks Act 1998 (Cap 332)",
+        "Copyright Act 2021",
+        "Patents Act 1994 (Cap 221)",
+        "Personal Data Protection Act 2012 (PDPA)",
+        "Cybersecurity Act 2018"
+      ],
+      "precedents": [],
+      "rule_module": null,
+      "sub_domains": [
+        {
+          "name": "trademarks_and_passing_off",
+          "keywords": ["trademark", "trade mark", "passing off", "bad faith registration"],
+          "implemented": false
+        },
+        {
+          "name": "copyright_and_creative_rights",
+          "keywords": ["copyright", "fair use", "fair dealing"],
+          "implemented": false
+        },
+        {
+          "name": "patents_and_designs",
+          "keywords": ["patent", "novelty", "inventive step", "registered design"],
+          "implemented": false
+        },
+        {
+          "name": "data_protection_and_cybersecurity",
+          "keywords": ["pdpa", "personal data protection", "cybersecurity act", "data breach"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "banking_finance",
+      "label": "Banking, Finance & FinTech",
+      "statutory_codes": [
+        "Payment Services Act 2019 (PSA)"
+      ],
+      "precedents": [
+        "Royal Bank of Scotland v Etridge (No 2) [2001] UKHL 44",
+        "Bybit Fintech Ltd v Ho Kai Xin [2023] SGHC 199"
+      ],
+      "rule_module": null,
+      "sub_domains": [
+        {
+          "name": "guarantees_and_indemnities",
+          "keywords": ["guarantee", "indemnity", "undue influence", "etridge"],
+          "implemented": false
+        },
+        {
+          "name": "payment_and_trade_finance",
+          "keywords": ["letter of credit", "performance bond", "trade finance"],
+          "implemented": false
+        },
+        {
+          "name": "fintech_and_digital_assets",
+          "keywords": ["payment services act", "cryptocurrency", "crypto-asset", "digital asset"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "family_law",
+      "label": "Family & Personal Status",
+      "statutory_codes": [
+        "Women's Charter 1961 (Cap 353)",
+        "Guardianship of Infants Act 1934",
+        "Wills Act 1838",
+        "Intestate Succession Act 1967 (Cap 146)",
+        "Mental Capacity Act 2008",
+        "Administration of Muslim Law Act 1966 (AMLA)"
+      ],
+      "precedents": [],
+      "rule_module": null,
+      "sub_domains": [
+        {
+          "name": "divorce_and_matrimonial_assets",
+          "keywords": ["divorce", "matrimonial assets", "women's charter", "maintenance"],
+          "implemented": false
+        },
+        {
+          "name": "child_custody_and_guardianship",
+          "keywords": ["custody", "care and control", "access order", "guardianship"],
+          "implemented": false
+        },
+        {
+          "name": "probate_wills_and_intestacy",
+          "keywords": ["probate", "will", "intestate", "intestacy", "letters of administration", "mental capacity act"],
+          "implemented": false
+        },
+        {
+          "name": "muslim_law",
+          "keywords": ["syariah", "muslim law", "amla"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "criminal_law",
+      "label": "Criminal Law & Regulatory Offenses",
+      "statutory_codes": [
+        "Penal Code 1872 (Cap 224)",
+        "Prevention of Corruption Act 1960 (PCA)",
+        "Corruption, Drug Trafficking and Other Serious Crimes Act (CDSA)",
+        "Securities and Futures Act 2001 (SFA)",
+        "Computer Misuse Act 1993 (CMA)",
+        "Protection from Online Falsehoods and Manipulation Act 2019 (POFMA)"
+      ],
+      "precedents": [],
+      "rule_module": null,
+      "sub_domains": [
+        {
+          "name": "penal_code_offenses",
+          "keywords": ["penal code", "theft", "cheating", "criminal breach of trust", "hurt"],
+          "implemented": false
+        },
+        {
+          "name": "white_collar_and_financial_crime",
+          "keywords": ["corruption", "prevention of corruption act", "money laundering", "cdsa", "insider trading"],
+          "implemented": false
+        },
+        {
+          "name": "public_order_and_cybercrime",
+          "keywords": ["computer misuse act", "pofma", "online falsehood"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "public_admin_law",
+      "label": "Public, Constitutional & Administrative Law",
+      "statutory_codes": [
+        "Constitution of the Republic of Singapore"
+      ],
+      "precedents": [],
+      "rule_module": null,
+      "sub_domains": [
+        {
+          "name": "judicial_review",
+          "keywords": ["judicial review", "wednesbury", "irrationality", "procedural impropriety", "legitimate expectation"],
+          "implemented": false
+        },
+        {
+          "name": "constitutional_rights",
+          "keywords": ["constitution", "fundamental liberties", "article 9", "article 12", "article 14", "article 15"],
+          "implemented": false
+        }
+      ]
+    },
+    {
+      "domain": "procedural_jurisdiction",
+      "label": "Dispute Resolution & Procedural Rules",
+      "statutory_codes": [
+        "Limitation Act 1959 (Cap 163)",
+        "International Arbitration Act 1994 (IAA)",
+        "Arbitration Act 2005 (AA)"
+      ],
+      "precedents": [],
+      "rule_module": "core.procedural_calculators",
+      "sub_domains": [
+        {
+          "name": "limitation_periods",
+          "keywords": ["limitation period", "limitation act", "time-barred", "statute-barred"],
+          "implemented": true
+        },
+        {
+          "name": "court_jurisdictional_thresholds",
+          "keywords": ["small claims tribunal", "magistrate's court", "district court", "general division of the high court", "sicc"],
+          "implemented": false
+        },
+        {
+          "name": "arbitration_frameworks",
+          "keywords": ["arbitration", "international arbitration act", "setting aside award"],
+          "implemented": false
+        }
+      ]
+    }
+  ]
+}

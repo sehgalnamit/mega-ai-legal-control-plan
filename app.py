@@ -13,6 +13,7 @@ import streamlit as st
 
 from core.chat_router import generate_generic_reply, is_legal_case_message
 from core.domain_router import classify_domains, is_unmapped_domain
+from core.domain_taxonomy import build_unmapped_domain_response, classify_singapore_legal_domains
 from core.followup_intent import detect_fact_patch
 from core.govops.finops import (
     MAX_ITERATIONS_PER_CONVERSATION,
@@ -120,6 +121,8 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
     limitation = None
     penalty_check = None
     provisional_text = None
+    unmapped_domain_analysis = None
+    matched_domains = []
     if safr_result.disposition != SafrDisposition.DENY:
         with start_worker_span("symbolic_deduction", "execute_tool", "symbolic_engine"):
             deduction = run_symbolic_deduction(payload)
@@ -135,9 +138,24 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
                 )
 
         if unmapped:
+            with start_worker_span("domain_taxonomy", "execute_tool", "domain_taxonomy"):
+                matched_domains = classify_singapore_legal_domains(provisional_source_text)
+                unmapped_domain_analysis = build_unmapped_domain_response(matched_domains, payload.case_id)
+
+            domain_context = None
+            if matched_domains:
+                statutes = ", ".join(unmapped_domain_analysis["matched_statutory_codes"]) or "none identified"
+                precedents = ", ".join(unmapped_domain_analysis["matched_precedents"]) or "none identified"
+                domain_context = (
+                    f"Matched Singapore legal domain(s): {', '.join(d.label for d in matched_domains)}. "
+                    f"Statutory codes: {statutes}. Precedents: {precedents}."
+                )
+
             provisional_usage: dict = {}
             with start_worker_span("provisional_analysis", "chat", "provisional_analysis_llm"):
-                provisional_text = generate_provisional_analysis(provisional_source_text, usage_sink=provisional_usage)
+                provisional_text = generate_provisional_analysis(
+                    provisional_source_text, usage_sink=provisional_usage, domain_context=domain_context
+                )
             ledger.record(
                 "provisional_analysis",
                 provisional_usage.get("model", "offline-no-provisional-analysis"),
@@ -150,8 +168,11 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
             safr_result.reasons
         )
     elif unmapped:
+        matched_labels = (
+            ", ".join(d.label for d in matched_domains) if matched_domains else "unclassified"
+        )
         summary = (
-            "🧭 **No deterministic rule module is loaded for this case's legal domain(s).** "
+            f"🧭 **No deterministic rule module is loaded for this case's legal domain(s) ({matched_labels}).** "
             "Escalating to human review with a provisional analysis below.\n\n"
             f"{provisional_text}"
         )
@@ -172,6 +193,7 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
         "extracted_facts": payload.model_dump(),
         "domains_evaluated": domains_evaluated,
         "is_unmapped_domain": unmapped,
+        "unmapped_domain_analysis": unmapped_domain_analysis,
         "graph_gate": graph_result,
         "additional_precedent_checks": additional_graph_results,
         "extraction_consistency": vars(consistency_result),

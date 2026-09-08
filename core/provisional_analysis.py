@@ -36,10 +36,18 @@ _OFFLINE_FALLBACK = (
 )
 
 
-def generate_provisional_analysis(case_text: str, usage_sink: Optional[dict] = None) -> str:
+def generate_provisional_analysis(
+    case_text: str, usage_sink: Optional[dict] = None, domain_context: Optional[str] = None
+) -> str:
     """Best-effort LLM draft analysis for a case with no deterministic rule
     coverage. Falls back to a safe static message when no LLM key is set.
+
+    `domain_context` is an optional short string (matched Singapore legal
+    domain(s), statutory codes, and precedents from `core.domain_taxonomy`)
+    used to ground the draft rather than letting the model guess.
     """
+    prompt = case_text if not domain_context else f"{case_text}\n\n[Reference context: {domain_context}]"
+
     for env_var, fn in (
         ("GROQ_API_KEY", _groq_analysis),
         ("OPENAI_API_KEY", _openai_analysis),
@@ -48,7 +56,7 @@ def generate_provisional_analysis(case_text: str, usage_sink: Optional[dict] = N
         api_key = os.getenv(env_var)
         if api_key:
             try:
-                return fn(case_text, api_key, usage_sink)
+                return fn(prompt, api_key, usage_sink)
             except Exception:
                 continue
 
