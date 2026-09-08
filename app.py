@@ -20,6 +20,7 @@ from core.govops.finops import (
     check_iteration_cap,
 )
 from core.govops.safr_envelope import SafrDisposition, evaluate_safr_envelope
+from core.govops.extraction_validator import validate_extraction_consistency
 from core.govops.tracer import (
     build_span_tree,
     get_captured_spans,
@@ -188,10 +189,14 @@ if prompt:
                     with start_worker_span("graph_gate", "execute_tool", "graph_gate"):
                         graph_result = check_precedent_status(payload.cited_precedent)
 
+                    with start_worker_span("extraction_validator", "execute_tool", "extraction_validator"):
+                        consistency_result = validate_extraction_consistency(payload, prompt)
+
                     safr_result = evaluate_safr_envelope(
                         payload,
                         extraction_confidence=payload.extraction_confidence,
                         claim_value_usd=payload.claim_value_sgd,
+                        extraction_contradictions=consistency_result.contradictions,
                     )
                     set_disposition(root_span, safr_result.verdict)
 
@@ -224,6 +229,7 @@ if prompt:
                     "case_id": payload.case_id,
                     "extracted_facts": payload.model_dump(),
                     "graph_gate": graph_result,
+                    "extraction_consistency": vars(consistency_result),
                     "symbolic_deduction": deduction,
                     "limitation_check": limitation,
                 }

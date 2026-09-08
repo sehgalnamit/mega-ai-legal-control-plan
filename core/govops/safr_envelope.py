@@ -10,12 +10,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from core.schemas import LegalCaseFactPayload
 
 HIGH_VALUE_CLAIM_THRESHOLD = 10_000.0
-MIN_EXTRACTION_CONFIDENCE = 0.6
+# Deliberately above the offline mock parser's fixed 0.65 confidence, so
+# any mock-parsed (i.e. non-LLM-verified) extraction on a real dispute
+# is escalated for human review rather than silently auto-executed.
+MIN_EXTRACTION_CONFIDENCE = 0.7
 
 
 class SafrDisposition(str, Enum):
@@ -37,6 +40,7 @@ def evaluate_safr_envelope(
     payload: LegalCaseFactPayload,
     extraction_confidence: float = 1.0,
     claim_value_usd: float = 0.0,
+    extraction_contradictions: Optional[List[str]] = None,
 ) -> SafrEnvelopeResult:
     """Risk-gate the neural-extracted payload before symbolic deduction."""
     risk_flags: List[str] = []
@@ -48,6 +52,10 @@ def evaluate_safr_envelope(
             f"Neural extraction confidence {extraction_confidence:.2f} is below "
             f"threshold {MIN_EXTRACTION_CONFIDENCE:.2f}."
         )
+
+    if extraction_contradictions:
+        risk_flags.append("EXTRACTION_CONTRADICTION")
+        reasons.extend(extraction_contradictions)
 
     if claim_value_usd >= HIGH_VALUE_CLAIM_THRESHOLD:
         risk_flags.append("HIGH_VALUE_CLAIM")
@@ -64,7 +72,7 @@ def evaluate_safr_envelope(
         risk_flags.append("MISSING_BREACH_DATE")
         reasons.append("No contract breach date extracted; limitation period cannot be computed.")
 
-    if "PERSONAL_INJURY_OR_DEATH" in risk_flags or "LOW_EXTRACTION_CONFIDENCE" in risk_flags:
+    if "PERSONAL_INJURY_OR_DEATH" in risk_flags or "LOW_EXTRACTION_CONFIDENCE" in risk_flags or "EXTRACTION_CONTRADICTION" in risk_flags:
         disposition = SafrDisposition.ESCALATE
         verdict = "ESCALATE"
     elif risk_flags:

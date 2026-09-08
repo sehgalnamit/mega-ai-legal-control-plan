@@ -78,9 +78,11 @@ def test_aircon_dispute_end_to_end_with_govops_telemetry():
     assert limitation["is_statute_barred"] is False
     assert limitation["limitation_expiry_date"] == "2030-06-15"
 
-    # MAS SAFR: high-value claim (S$45,000) => OBSERVE, not auto-executed silently.
-    assert safr_result.disposition == SafrDisposition.OBSERVE
-    assert safr_result.verdict == "ALLOW"
+    # MAS SAFR: high-value claim (S$45,000) + mock-parser confidence (0.65, below
+    # the 0.7 offline-parser threshold) => ESCALATE for human review, not
+    # silently auto-executed.
+    assert safr_result.disposition == SafrDisposition.ESCALATE
+    assert safr_result.verdict == "ESCALATE"
 
     spans = get_captured_spans()
     tree = build_span_tree(spans)
