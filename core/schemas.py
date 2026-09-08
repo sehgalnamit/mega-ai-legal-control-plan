@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from datetime import date
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class InjuryType(str, Enum):
@@ -53,6 +53,7 @@ class LegalCaseFactPayload(BaseModel):
 
     case_id: str
     cited_precedent: str
+    additional_precedents: List[str] = Field(default_factory=list)
     factual_foreseeability: bool
     proximity_type: ProximityType
     public_policy_negation: bool
@@ -65,6 +66,16 @@ class LegalCaseFactPayload(BaseModel):
     breach_term_type: Optional[BreachTermType] = None
     deprived_substantially_whole_benefit: bool = False
     claim_value_sgd: float = 0.0
+    # Restraint of trade (Man Financial (S) Pte Ltd v Wong Bark Chuan David
+    # [2008] 1 SLR(R) 663 two-tier reasonableness test).
+    has_restraint_of_trade_clause: bool = False
+    has_trade_secrets_or_confidential_info: bool = False
+    restraint_duration_months: Optional[int] = None
+    restraint_geography_scope: Optional[str] = None
+    # Liquidated damages / penalty rule (Denka Advantech Pte Ltd v Tan
+    # Yuanyuan [2020] 2 SLR 1155).
+    monthly_salary_sgd: Optional[float] = None
+    liquidated_damages_sgd: Optional[float] = None
     # GovOps attribute: neural-extraction self-reported confidence, used
     # only to risk-gate the pipeline (never to decide a legal outcome).
     extraction_confidence: float = 1.0

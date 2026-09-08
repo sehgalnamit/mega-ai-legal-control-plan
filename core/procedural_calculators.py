@@ -51,3 +51,37 @@ def check_limitation_period(breach_date_str: str, as_of: Optional[date] = None) 
             "of the cause of action."
         ),
     }
+
+
+# Denka Advantech Pte Ltd v Tan Yuanyuan [2020] 2 SLR 1155 (simplified):
+# a liquidated sum is a bright-line numeric comparison against a proxy
+# for the greatest conceivable loss, not an open-textured multi-factor
+# test - kept here as exact arithmetic rather than a pyDatalog rule, the
+# same way limitation-period math is kept out of the symbolic engine.
+PENALTY_REASONABLE_ESTIMATE_MONTHS_MULTIPLIER = 12
+
+
+def check_liquidated_damages_penalty(
+    monthly_salary_sgd: float,
+    liquidated_damages_sgd: float,
+    months_multiplier: int = PENALTY_REASONABLE_ESTIMATE_MONTHS_MULTIPLIER,
+) -> Dict[str, object]:
+    """Flag a liquidated damages clause as an unenforceable penalty if it
+    is extravagant and unconscionable relative to a reasonable estimate
+    of the greatest conceivable loss (approximated as `months_multiplier`
+    months of salary).
+    """
+    reasonable_estimate_cap = monthly_salary_sgd * months_multiplier
+    is_extravagant_penalty = liquidated_damages_sgd > reasonable_estimate_cap
+
+    return {
+        "monthly_salary_sgd": monthly_salary_sgd,
+        "liquidated_damages_sgd": liquidated_damages_sgd,
+        "reasonable_estimate_cap_sgd": reasonable_estimate_cap,
+        "is_extravagant_penalty": is_extravagant_penalty,
+        "clause_enforceable": not is_extravagant_penalty,
+        "statutory_basis": (
+            "Denka Advantech Pte Ltd v Tan Yuanyuan [2020] 2 SLR 1155 - penalty "
+            "rule (extravagant/unconscionable sums are unenforceable)."
+        ),
+    }

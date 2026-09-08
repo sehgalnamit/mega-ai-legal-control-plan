@@ -1,6 +1,6 @@
 """Declarative symbolic deduction engine using pyDatalog.
 
-Encodes three areas of Singapore law as formal Horn-clause rules:
+Encodes four areas of Singapore law as formal Horn-clause rules:
 
 1. The Spandeck 2-stage duty of care test
    (Spandeck Engineering v AGC [2007] 4 SLR(R) 100).
@@ -9,6 +9,8 @@ Encodes three areas of Singapore law as formal Horn-clause rules:
 3. The RDC Concrete contract-term classification test (RDC Concrete Pte
    Ltd v Sato Kogyo (S) Pte Ltd [2007] 4 SLR(R) 413) for the right to
    terminate vs. a damages-only remedy.
+4. The Man Financial restraint-of-trade two-tier reasonableness test
+   (Man Financial (S) Pte Ltd v Wong Bark Chuan David [2008] 1 SLR(R) 663).
 
 No procedural if/else branching or LLM prompting is used to reach a
 legal verdict here - only declarative rule evaluation against asserted
@@ -35,13 +37,16 @@ _NEVER = "__never_matches__"
 # writes to f_globals to create new local bindings, so calling it
 # inside `initialize_symbolic_rules` would leave these names undefined.
 pyDatalog.create_terms(
-    "Case, Prox, Inj, Term, "
+    "Case, Prox, Inj, Term, Dur, Geo, "
     "foreseeable, proximity_type_fact, policy_negated, "
     "exemption_clause, factor_bargaining, factor_inducement, "
     "factor_standard_form, breach_term_fact, substantial_deprivation, "
+    "restraint_clause_fact, has_trade_secret_fact, restraint_duration_fact, "
+    "restraint_geography_fact, "
     "proximity_established, prima_facie_duty, duty_of_care_exists, "
     "clause_void_ucta_s21, unreasonable_ucta_schedule2, "
-    "right_to_terminate, claim_damages"
+    "right_to_terminate, claim_damages, "
+    "legitimate_proprietary_interest, restraint_scope_excessive, restraint_of_trade_void"
 )
 
 
@@ -88,6 +93,22 @@ def initialize_symbolic_rules() -> Any:
         & substantial_deprivation(Case)
     )
     claim_damages(Case) <= breach_term_fact(Case, Term) & (Term != _NEVER)
+
+    # --- MAN FINANCIAL RESTRAINT OF TRADE (two-tier test) ---
+    # Tier 1: a legitimate proprietary interest (trade secrets/confidential
+    # info) must exist, or the restraint is void outright.
+    # Tier 2: even with a legitimate interest, the restraint's duration and
+    # geographic scope must be reasonable between the parties.
+    legitimate_proprietary_interest(Case) <= has_trade_secret_fact(Case)
+
+    restraint_scope_excessive(Case) <= restraint_duration_fact(Case, Dur) & (Dur > 12)
+    restraint_scope_excessive(Case) <= restraint_geography_fact(Case, Geo) & (Geo == "asia_pacific")
+    restraint_scope_excessive(Case) <= restraint_geography_fact(Case, Geo) & (Geo == "global")
+
+    restraint_of_trade_void(Case) <= restraint_clause_fact(Case) & ~legitimate_proprietary_interest(Case)
+    restraint_of_trade_void(Case) <= (
+        restraint_clause_fact(Case) & legitimate_proprietary_interest(Case) & restraint_scope_excessive(Case)
+    )
 
     return pyDatalog
 
@@ -145,6 +166,23 @@ def run_symbolic_deduction(payload: LegalCaseFactPayload) -> Dict[str, Any]:
         +substantial_deprivation(case)
         trace.append(f"ASSERT substantial_deprivation('{case}')")
 
+    # --- Assert Man Financial restraint-of-trade facts ---
+    if payload.has_restraint_of_trade_clause:
+        +restraint_clause_fact(case)
+        trace.append(f"ASSERT restraint_clause_fact('{case}')  # Man Financial restraint of trade clause present")
+
+        if payload.has_trade_secrets_or_confidential_info:
+            +has_trade_secret_fact(case)
+            trace.append(f"ASSERT has_trade_secret_fact('{case}')")
+
+        if payload.restraint_duration_months is not None:
+            +restraint_duration_fact(case, payload.restraint_duration_months)
+            trace.append(f"ASSERT restraint_duration_fact('{case}', {payload.restraint_duration_months})")
+
+        if payload.restraint_geography_scope is not None:
+            +restraint_geography_fact(case, payload.restraint_geography_scope)
+            trace.append(f"ASSERT restraint_geography_fact('{case}', '{payload.restraint_geography_scope}')")
+
     # --- Query deduced predicates (declarative, not procedural) ---
     proximity_ok = bool(proximity_established(case))
     prima_facie = bool(prima_facie_duty(case))
@@ -153,6 +191,7 @@ def run_symbolic_deduction(payload: LegalCaseFactPayload) -> Dict[str, Any]:
     unreasonable_sch2 = bool(unreasonable_ucta_schedule2(case))
     right_to_terminate_result = bool(right_to_terminate(case))
     claim_damages_result = bool(claim_damages(case))
+    restraint_void_result = bool(restraint_of_trade_void(case)) if payload.has_restraint_of_trade_clause else None
 
     trace.append(f"DEDUCE proximity_established('{case}') => {proximity_ok}")
     trace.append(f"DEDUCE prima_facie_duty('{case}') => {prima_facie}")
@@ -161,6 +200,8 @@ def run_symbolic_deduction(payload: LegalCaseFactPayload) -> Dict[str, Any]:
     trace.append(f"DEDUCE unreasonable_ucta_schedule2('{case}') => {unreasonable_sch2}")
     trace.append(f"DEDUCE right_to_terminate('{case}') => {right_to_terminate_result}")
     trace.append(f"DEDUCE claim_damages('{case}') => {claim_damages_result}")
+    if restraint_void_result is not None:
+        trace.append(f"DEDUCE restraint_of_trade_void('{case}') => {restraint_void_result}")
 
     exemption_enforceable = (
         payload.has_exemption_clause and not void_s21 and not unreasonable_sch2
@@ -181,6 +222,10 @@ def run_symbolic_deduction(payload: LegalCaseFactPayload) -> Dict[str, Any]:
         "rdc_concrete": {
             "right_to_terminate": right_to_terminate_result,
             "claim_damages": claim_damages_result,
+        },
+        "restraint_of_trade": {
+            "clause_present": payload.has_restraint_of_trade_clause,
+            "void": restraint_void_result,
         },
         "proof_trace": trace,
     }

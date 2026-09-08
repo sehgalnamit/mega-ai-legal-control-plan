@@ -6,7 +6,7 @@ human-readable prose for the chat UI.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from core.schemas import LegalCaseFactPayload
 
@@ -16,6 +16,8 @@ def render_legal_advice_summary(
     deduction: Optional[Dict[str, Any]],
     limitation: Optional[Dict[str, Any]],
     graph_result: Dict[str, Any],
+    penalty_check: Optional[Dict[str, Any]] = None,
+    additional_graph_results: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """Format already-computed verdicts into readable prose."""
     if deduction is None:
@@ -25,6 +27,9 @@ def render_legal_advice_summary(
 
     if graph_result.get("warning"):
         lines.append(f"⚠️ {graph_result['warning']}")
+    for extra_result in additional_graph_results or []:
+        if extra_result.get("warning"):
+            lines.append(f"⚠️ {extra_result['warning']}")
 
     rdc = deduction["rdc_concrete"]
     if payload.breach_term_type is not None:
@@ -59,8 +64,39 @@ def render_legal_advice_summary(
         else:
             lines.append("The exemption clause **passes** the UCTA reasonableness test.")
 
+    restraint = deduction.get("restraint_of_trade") or {}
+    if restraint.get("clause_present"):
+        if restraint["void"]:
+            lines.append(
+                "The restraint of trade clause is **void and unenforceable** under the "
+                "*Man Financial* two-tier test (*Man Financial (S) Pte Ltd v Wong Bark "
+                "Chuan David* [2008] 1 SLR(R) 663) — no legitimate proprietary interest, "
+                "or the duration/geographic scope is unreasonable."
+            )
+        else:
+            lines.append(
+                "The restraint of trade clause **passes** the *Man Financial* two-tier "
+                "reasonableness test."
+            )
+
+    if penalty_check is not None:
+        if penalty_check["is_extravagant_penalty"]:
+            lines.append(
+                "The liquidated damages clause is an **unenforceable penalty** under "
+                "*Denka Advantech Pte Ltd v Tan Yuanyuan* [2020] 2 SLR 1155 — "
+                f"S${penalty_check['liquidated_damages_sgd']:,.0f} is extravagant against a "
+                f"reasonable estimate cap of S${penalty_check['reasonable_estimate_cap_sgd']:,.0f}."
+            )
+        else:
+            lines.append(
+                "The liquidated damages clause **is enforceable** as a genuine pre-estimate "
+                "of loss under *Denka Advantech Pte Ltd v Tan Yuanyuan* [2020] 2 SLR 1155."
+            )
+
+    # Only relevant for tort-flavoured disputes (an injury type or asserted
+    # foreseeability) - otherwise this is noise on a pure contract claim.
     spandeck = deduction["spandeck"]
-    if payload.factual_foreseeability or payload.proximity_type.value != "no_proximity":
+    if payload.injury_type is not None or payload.factual_foreseeability:
         if spandeck["duty_of_care_exists"]:
             lines.append("A duty of care is established under the *Spandeck* 2-stage test.")
         else:

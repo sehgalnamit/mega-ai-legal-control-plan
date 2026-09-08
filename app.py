@@ -32,7 +32,7 @@ from core.govops.tracer import (
 )
 from core.graph_gate import check_precedent_status
 from core.neural_parser import parse_legal_case_text
-from core.procedural_calculators import check_limitation_period
+from core.procedural_calculators import check_limitation_period, check_liquidated_damages_penalty
 from core.response_renderer import render_legal_advice_summary
 from core.safety.content_moderation import check_content_safety
 from core.symbolic_engine import run_symbolic_deduction
@@ -50,6 +50,25 @@ AIRCON_DISPUTE_SAMPLE = (
     "terminate the lease immediately and claim damages. The contract was breached on "
     "2024-06-15. Cited precedent: RDC Concrete Pte Ltd v Sato Kogyo (S) Pte Ltd "
     "[2007] 4 SLR(R) 413."
+)
+
+RESTRAINT_OF_TRADE_SAMPLE = (
+    "Client C was employed as a Junior Software Developer by TechCorp SG (a "
+    "Singapore-based software company) under a standard employment contract signed "
+    "in 2024. Client C's monthly salary was S$4,500. Clause 22 (Restraint of Trade) "
+    "stipulates: 'Upon termination of employment for any reason, the Employee shall "
+    "not work for, consult with, or establish any business competing with TechCorp "
+    "SG anywhere in the Asia-Pacific region for a period of 24 months.' No specialized "
+    "trade secrets or confidential client lists were accessible to Client C in their "
+    "junior role.\n\nOn 2026-03-01, Client C resigned and accepted a job offer as a "
+    "Web Developer at a rival Singapore fintech startup. TechCorp SG has issued a "
+    "Letter of Demand threatening an interim injunction to enforce Clause 22 and "
+    "claim liquidated damages under Clause 23 (S$100,000 fixed penalty).\n\n"
+    "Governing Frameworks & Precedents:\n\n"
+    "Man Financial (S) Pte Ltd v Wong Bark Chuan David [2008] 1 SLR(R) 663 (Singapore "
+    "Court of Appeal test for Restraint of Trade).\n\n"
+    "Denka Advantech Pte Ltd v Tan Yuanyuan [2020] 2 SLR 1155 (Penalty rule in "
+    "Singapore)."
 )
 
 if "conversation_id" not in st.session_state:
@@ -93,9 +112,14 @@ for message in st.session_state.messages:
 prompt = st.chat_input("Describe the dispute (e.g. the aircon maintenance scenario)...")
 
 if not st.session_state.messages and not prompt:
-    st.info("💡 Try the sample aircon maintenance dispute, or type your own scenario in the chat box below.")
-    if st.button("Use sample aircon dispute"):
-        prompt = AIRCON_DISPUTE_SAMPLE
+    st.info("💡 Try a sample dispute, or type your own scenario in the chat box below.")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Use sample aircon dispute"):
+            prompt = AIRCON_DISPUTE_SAMPLE
+    with col2:
+        if st.button("Use sample restraint-of-trade dispute"):
+            prompt = RESTRAINT_OF_TRADE_SAMPLE
 
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -188,6 +212,9 @@ if prompt:
 
                     with start_worker_span("graph_gate", "execute_tool", "graph_gate"):
                         graph_result = check_precedent_status(payload.cited_precedent)
+                        additional_graph_results = [
+                            check_precedent_status(citation) for citation in payload.additional_precedents
+                        ]
 
                     with start_worker_span("extraction_validator", "execute_tool", "extraction_validator"):
                         consistency_result = validate_extraction_consistency(payload, prompt)
@@ -202,6 +229,7 @@ if prompt:
 
                     deduction = None
                     limitation = None
+                    penalty_check = None
                     if safr_result.disposition != SafrDisposition.DENY:
                         with start_worker_span("symbolic_deduction", "execute_tool", "symbolic_engine"):
                             deduction = run_symbolic_deduction(payload)
@@ -212,6 +240,14 @@ if prompt:
                             ):
                                 limitation = check_limitation_period(payload.contract_breach_date)
 
+                        if payload.monthly_salary_sgd and payload.liquidated_damages_sgd:
+                            with start_worker_span(
+                                "penalty_clause_calculator", "execute_tool", "procedural_calculator"
+                            ):
+                                penalty_check = check_liquidated_damages_penalty(
+                                    payload.monthly_salary_sgd, payload.liquidated_damages_sgd
+                                )
+
                 spans = get_captured_spans()
                 span_tree = build_span_tree(spans)
                 trace_id = span_tree[0]["trace_id"] if span_tree else None
@@ -221,7 +257,14 @@ if prompt:
                         safr_result.reasons
                     )
                 else:
-                    summary = render_legal_advice_summary(payload, deduction, limitation, graph_result)
+                    summary = render_legal_advice_summary(
+                        payload,
+                        deduction,
+                        limitation,
+                        graph_result,
+                        penalty_check=penalty_check,
+                        additional_graph_results=additional_graph_results,
+                    )
                     if safr_result.disposition == SafrDisposition.ESCALATE:
                         summary = "🧑‍⚖️ **Escalated for human-in-the-loop review.** " + summary
 
@@ -229,9 +272,11 @@ if prompt:
                     "case_id": payload.case_id,
                     "extracted_facts": payload.model_dump(),
                     "graph_gate": graph_result,
+                    "additional_precedent_checks": additional_graph_results,
                     "extraction_consistency": vars(consistency_result),
                     "symbolic_deduction": deduction,
                     "limitation_check": limitation,
+                    "penalty_check": penalty_check,
                 }
                 govops_panel = {
                     "trace_id": trace_id,

@@ -38,6 +38,20 @@ single lookup/threshold check (as with non-compete duration caps).
   Kogyo (S) Pte Ltd* [2007] 4 SLR(R) 413): only a breach of condition
   (or an innominate term causing substantial deprivation) grounds a
   right to terminate; any recognized breach grounds damages.
+- **Man Financial restraint of trade** (*Man Financial (S) Pte Ltd v
+  Wong Bark Chuan David* [2008] 1 SLR(R) 663): a two-tier test - a
+  restraint clause is void unless (1) a legitimate proprietary interest
+  (e.g. trade secrets) exists, and (2) its duration/geographic scope is
+  reasonable between the parties. Deliberately scoped so the rule is
+  inert unless a restraint clause is actually asserted for that case -
+  it never fires "vacuously true" on an unrelated dispute.
+- **Denka Advantech penalty rule** (*Denka Advantech Pte Ltd v Tan
+  Yuanyuan* [2020] 2 SLR 1155): implemented in
+  `core/procedural_calculators.py`, not pyDatalog - a bright-line
+  numeric comparison (liquidated sum vs. a salary-based proxy for the
+  greatest conceivable loss) is exact arithmetic, not an open-textured
+  multi-factor test, so it follows the same "procedural, not symbolic"
+  principle as the Limitation Act calculator.
 - **Non-compete duration cap** (`engine/symbolic_rules.py`): a per-
   jurisdiction lookup table (Singapore 12 months, California barred
   outright, etc.).

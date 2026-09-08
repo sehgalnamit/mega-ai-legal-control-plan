@@ -15,11 +15,18 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from core.schemas import BreachTermType, InjuryType, LegalCaseFactPayload, ProximityType
 
 MOCK_MODEL_NAME = "mock-offline-parser"
+
+# Matches a case citation of the form "Name v Name [year] Reporter ..." on a
+# single line, used as a fallback when no explicit "Cited precedent:" label
+# is present (e.g. a "Governing Frameworks & Precedents:" list).
+_CASE_CITATION_RE = re.compile(r"([A-Z][\w.&'()\-,\s]*? v\.? [A-Z][\w.&'()\-,\s]*? \[\d{4}\][^\n]*)")
+# Strips a trailing explanatory parenthetical, e.g. "... 663 (SGCA test for X)."
+_TRAILING_EXPLANATION_RE = re.compile(r"\s*\([^()]*\)\.?\s*$")
 
 SYSTEM_PROMPT = """You are a Semantic Fact Extraction engine for Singapore legal texts.
 
@@ -143,11 +150,49 @@ def _mock_extract_facts(case_text: str, case_id: str) -> dict:
         k in text for k in ("deprived", "entire benefit", "whole benefit")
     )
 
+    has_restraint_of_trade_clause = any(
+        k in text
+        for k in ("restraint of trade", "non-compete", "non compete", "noncompete", "competing business")
+    )
+
+    has_trade_secrets_or_confidential_info = has_restraint_of_trade_clause and (
+        any(k in text for k in ("trade secret", "confidential client", "confidential information", "client relationships"))
+        and not any(
+            neg in text
+            for neg in ("no trade secret", "no specialized trade secret", "no confidential", "not accessible", "no access to")
+        )
+    )
+
+    restraint_duration_months: Optional[int] = None
+    restraint_geography_scope: Optional[str] = None
+    if has_restraint_of_trade_clause:
+        restraint_month_match = re.search(r"(\d+)\s*-?\s*month", text)
+        if restraint_month_match:
+            restraint_duration_months = int(restraint_month_match.group(1))
+
+        if re.search(r"asia[- ]pacific", text):
+            restraint_geography_scope = "asia_pacific"
+        elif any(k in text for k in ("worldwide", "global")):
+            restraint_geography_scope = "global"
+        elif "singapore" in text:
+            restraint_geography_scope = "singapore"
+
+    monthly_salary_sgd: Optional[float] = None
+    salary_match = re.search(r"monthly salary[^.\n]*?s\$\s?([\d,]+(?:\.\d+)?)", case_text, re.IGNORECASE)
+    if salary_match:
+        monthly_salary_sgd = float(salary_match.group(1).replace(",", ""))
+
+    liquidated_damages_sgd: Optional[float] = None
+    penalty_match = re.search(
+        r"(?:liquidated damages|fixed penalty)[^.\n]*?s\$\s?([\d,]+(?:\.\d+)?)", case_text, re.IGNORECASE
+    )
+    if penalty_match:
+        liquidated_damages_sgd = float(penalty_match.group(1).replace(",", ""))
+
     breach_match = re.search(r"(\d{4}-\d{2}-\d{2})", case_text)
     contract_breach_date = breach_match.group(1) if breach_match else None
 
-    precedent_match = re.search(r"cited precedent:\s*([^.\n]+)", case_text, re.IGNORECASE)
-    cited_precedent = precedent_match.group(1).strip() if precedent_match else "Unspecified Precedent"
+    cited_precedent, additional_precedents = _extract_precedents(case_text)
 
     claim_match = re.search(r"s\$\s?([\d,]+(?:\.\d+)?)", case_text, re.IGNORECASE)
     claim_value_sgd = float(claim_match.group(1).replace(",", "")) if claim_match else 0.0
@@ -155,6 +200,7 @@ def _mock_extract_facts(case_text: str, case_id: str) -> dict:
     return {
         "case_id": case_id,
         "cited_precedent": cited_precedent,
+        "additional_precedents": additional_precedents,
         "factual_foreseeability": foreseeable,
         "proximity_type": proximity_type,
         "public_policy_negation": public_policy_negation,
@@ -167,8 +213,45 @@ def _mock_extract_facts(case_text: str, case_id: str) -> dict:
         "breach_term_type": breach_term_type,
         "deprived_substantially_whole_benefit": deprived_substantially_whole_benefit,
         "claim_value_sgd": claim_value_sgd,
+        "has_restraint_of_trade_clause": has_restraint_of_trade_clause,
+        "has_trade_secrets_or_confidential_info": has_trade_secrets_or_confidential_info,
+        "restraint_duration_months": restraint_duration_months,
+        "restraint_geography_scope": restraint_geography_scope,
+        "monthly_salary_sgd": monthly_salary_sgd,
+        "liquidated_damages_sgd": liquidated_damages_sgd,
         "extraction_confidence": 0.65,
     }
+
+
+def _extract_case_citations(raw_text: str) -> List[str]:
+    """Scan for bare `Name v Name [year] Reporter` citations (no explicit
+    "Cited precedent:" label), stripping a trailing explanatory parenthetical.
+    """
+    citations = []
+    for match in _CASE_CITATION_RE.finditer(raw_text):
+        candidate = match.group(1).strip()
+        cleaned = _TRAILING_EXPLANATION_RE.sub("", candidate).strip().rstrip(".")
+        if cleaned:
+            citations.append(cleaned)
+    return citations
+
+
+def _extract_precedents(raw_text: str) -> Tuple[str, List[str]]:
+    """Return (primary_citation, additional_citations).
+
+    Prefers an explicit "Cited precedent: X." label; falls back to
+    scanning for bare case citations (e.g. a "Governing Frameworks &
+    Precedents:" list citing multiple authorities).
+    """
+    labeled_match = re.search(r"cited precedent:\s*([^.\n]+)", raw_text, re.IGNORECASE)
+    if labeled_match:
+        return labeled_match.group(1).strip(), []
+
+    citations = _extract_case_citations(raw_text)
+    if citations:
+        return citations[0], citations[1:]
+
+    return "Unspecified Precedent", []
 
 
 def _schema_prompt(case_text: str, case_id: str) -> str:

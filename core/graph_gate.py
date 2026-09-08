@@ -50,6 +50,10 @@ class PrecedentGraph:
         self.add_precedent(
             "RDC Concrete Pte Ltd v Sato Kogyo (S) Pte Ltd [2007] 4 SLR(R) 413", CourtLevel.SGCA
         )
+        self.add_precedent(
+            "Man Financial (S) Pte Ltd v Wong Bark Chuan David [2008] 1 SLR(R) 663", CourtLevel.SGCA
+        )
+        self.add_precedent("Denka Advantech Pte Ltd v Tan Yuanyuan [2020] 2 SLR 1155", CourtLevel.SGCA)
         self.add_precedent("Old State Courts Ruling on Duty of Care", CourtLevel.STATE_COURTS)
         self.overrule(
             "Old State Courts Ruling on Duty of Care",
