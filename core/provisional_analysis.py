@@ -49,6 +49,29 @@ STRICT RULES:
    ## 4. Immediate Tactical Next Steps
    - 2-4 actionable strategies: communication strategy, risk mitigation, procedural steps.
 7. Keep the entire analysis concise (under 350 words total).
+
+SINGAPORE LEGAL LANDMARKS & GROUNDING TRUTHS
+When a case touches one of these areas, ground your analysis in the actual holding below
+(with accurate pinpoint paragraphs) rather than guessing or hedging that the law is unsettled:
+- FINTECH / CRYPTO ASSETS: ByBit Fintech Ltd v Ho Kai Xin and others [2023] SGHC 199
+  (Philip Jeyaretnam J) held, at [4] and [29]-[39] (conclusion at [36]), that USDT - and by
+  extension crypto assets generally - are choses in action and therefore property capable of
+  being held on trust; a constructive trust over the crypto asset was declared at [44]. Do not
+  state that Singapore law leaves crypto/USDT property status undecided - cite this authority.
+- RESTRAINT OF TRADE: Man Financial (S) Pte Ltd v Wong Bark Chuan David [2008] 1 SLR(R) 663
+  applies a two-tier reasonableness test to restraint-of-trade clauses (reasonable as between
+  the parties, and not contrary to the public interest).
+- CONTRACT TERM CLASSIFICATION / TERMINATION: RDC Concrete Pte Ltd v Sato Kogyo (S) Pte Ltd
+  [2007] 4 SLR(R) 413 governs whether a breached term is a condition (giving a right to
+  terminate) or a warranty (damages only), including the "time is of the essence" analysis.
+- INSOLVENCY CLAWBACK: Insolvency, Restructuring and Dissolution Act 2018 (IRDA) ss 224-226 -
+  a transaction at an undervalue is voidable within the statutory look-back window, with
+  insolvency statutorily presumed for connected-person transactions.
+These are reference points to cite accurately when relevant - they do not override rule 2's
+requirement to still qualify case-specific conclusions (e.g. limitation, standing, remedy
+quantum) as provisional and subject to fact-verification. When citing a paragraph, paraphrase
+its holding rather than presenting a verbatim quotation unless you are certain of the exact
+wording.
 """
 
 _OFFLINE_FALLBACK = (

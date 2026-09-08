@@ -54,6 +54,7 @@ class PrecedentGraph:
             "Man Financial (S) Pte Ltd v Wong Bark Chuan David [2008] 1 SLR(R) 663", CourtLevel.SGCA
         )
         self.add_precedent("Denka Advantech Pte Ltd v Tan Yuanyuan [2020] 2 SLR 1155", CourtLevel.SGCA)
+        self.add_precedent("Bybit Fintech Ltd v Ho Kai Xin [2023] SGHC 199", CourtLevel.SGHC)
         self.add_precedent("Old State Courts Ruling on Duty of Care", CourtLevel.STATE_COURTS)
         self.overrule(
             "Old State Courts Ruling on Duty of Care",
