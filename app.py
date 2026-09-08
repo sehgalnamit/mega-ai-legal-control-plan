@@ -11,6 +11,7 @@ import uuid
 
 import streamlit as st
 
+from core.chat_router import generate_generic_reply, is_legal_case_message
 from core.govops.finops import (
     MAX_ITERATIONS_PER_CONVERSATION,
     FinOpsLedger,
@@ -32,6 +33,7 @@ from core.graph_gate import check_precedent_status
 from core.neural_parser import parse_legal_case_text
 from core.procedural_calculators import check_limitation_period
 from core.response_renderer import render_legal_advice_summary
+from core.safety.content_moderation import check_content_safety
 from core.symbolic_engine import run_symbolic_deduction
 
 st.set_page_config(page_title="Mega AI - Singapore Legal Chatbot", layout="wide")
@@ -107,105 +109,163 @@ if prompt:
         st.stop()
 
     st.session_state.iteration_count += 1
-    reset_trace_buffer()
-    ledger = FinOpsLedger(max_token_budget=int(token_budget))
-    case_id = f"CASE_{st.session_state.iteration_count}_{st.session_state.conversation_id[:8]}"
+    moderation = check_content_safety(prompt)
 
-    with st.chat_message("assistant"):
-        try:
+    if not moderation.is_safe:
+        refusal = (
+            "🚫 I can't help with that request — it was flagged by the content-safety "
+            f"guardrail (categories: {', '.join(moderation.categories) or 'unspecified'}). "
+            "Please rephrase your message."
+        )
+        with st.chat_message("assistant"):
+            st.error(refusal)
+        st.session_state.messages.append({"role": "assistant", "content": refusal})
+        st.session_state.audit_log.append(
+            {
+                "case_id": None,
+                "prompt": prompt,
+                "verdict_card": None,
+                "govops_panel": {"moderation": moderation.__dict__, "safr_disposition": "DENY"},
+            }
+        )
+
+    elif not is_legal_case_message(prompt):
+        reset_trace_buffer()
+        ledger = FinOpsLedger(max_token_budget=int(token_budget))
+        with st.chat_message("assistant"):
             with start_root_span(st.session_state.conversation_id, enduser_id, prompt) as root_span:
-                traceparent = inject_traceparent().get("traceparent", "")
-
+                set_disposition(root_span, "ALLOW")
                 usage_sink: dict = {}
-                with start_worker_span(
-                    "neural_parsing", "chat", "neural_parser", **{"gen_ai.request.model": "auto"}
-                ) as parser_span:
-                    payload = parse_legal_case_text(prompt, case_id=case_id, usage_sink=usage_sink)
+                with start_worker_span("generic_chat_reply", "chat", "chat_router") as reply_span:
+                    reply = generate_generic_reply(prompt, usage_sink=usage_sink)
                     ledger.record(
-                        "neural_parsing",
-                        usage_sink.get("model", "mock-offline-parser"),
+                        "generic_chat_reply",
+                        usage_sink.get("model", "offline-canned-reply"),
                         usage_sink.get("input_tokens", 0),
                         usage_sink.get("output_tokens", 0),
                     )
-                    parser_span.set_attribute("gen_ai.usage.input_tokens", usage_sink.get("input_tokens", 0))
-                    parser_span.set_attribute("gen_ai.usage.output_tokens", usage_sink.get("output_tokens", 0))
+                    reply_span.set_attribute("gen_ai.usage.input_tokens", usage_sink.get("input_tokens", 0))
+                    reply_span.set_attribute("gen_ai.usage.output_tokens", usage_sink.get("output_tokens", 0))
 
-                with start_worker_span("graph_gate", "execute_tool", "graph_gate"):
-                    graph_result = check_precedent_status(payload.cited_precedent)
-
-                safr_result = evaluate_safr_envelope(
-                    payload,
-                    extraction_confidence=payload.extraction_confidence,
-                    claim_value_usd=payload.claim_value_sgd,
-                )
-                set_disposition(root_span, safr_result.verdict)
-
-                deduction = None
-                limitation = None
-                if safr_result.disposition != SafrDisposition.DENY:
-                    with start_worker_span("symbolic_deduction", "execute_tool", "symbolic_engine"):
-                        deduction = run_symbolic_deduction(payload)
-
-                    if payload.contract_breach_date:
-                        with start_worker_span(
-                            "limitation_calculator", "execute_tool", "procedural_calculator"
-                        ):
-                            limitation = check_limitation_period(payload.contract_breach_date)
-
-            spans = get_captured_spans()
-            span_tree = build_span_tree(spans)
-            trace_id = span_tree[0]["trace_id"] if span_tree else None
-
-            if safr_result.disposition == SafrDisposition.DENY:
-                summary = "🚫 This request was **denied** by the MAS SAFR governance envelope: " + "; ".join(
-                    safr_result.reasons
-                )
-            else:
-                summary = render_legal_advice_summary(payload, deduction, limitation, graph_result)
-                if safr_result.disposition == SafrDisposition.ESCALATE:
-                    summary = "🧑‍⚖️ **Escalated for human-in-the-loop review.** " + summary
-
-            verdict_card = {
-                "case_id": payload.case_id,
-                "extracted_facts": payload.model_dump(),
-                "graph_gate": graph_result,
-                "symbolic_deduction": deduction,
-                "limitation_check": limitation,
-            }
             govops_panel = {
-                "trace_id": trace_id,
-                "traceparent": traceparent,
-                "safr_disposition": safr_result.disposition.value,
-                "safr_verdict": safr_result.verdict,
-                "safr_reasons": safr_result.reasons,
+                "safr_disposition": "AUTO_EXECUTE",
                 "finops": ledger.to_dict(),
-                "span_tree": span_tree,
+                "span_tree": build_span_tree(get_captured_spans()),
             }
-
-            st.session_state.audit_log.append(
-                {"case_id": payload.case_id, "prompt": prompt, "verdict_card": verdict_card, "govops_panel": govops_panel}
-            )
-
-            st.markdown(summary)
-            with st.expander("Deterministic Verdict Card"):
-                st.json(verdict_card)
-            with st.expander("Symbolic Proof Trace"):
-                if deduction:
-                    for line in deduction["proof_trace"]:
-                        st.code(line, language="prolog")
-                else:
-                    st.write("No symbolic deduction executed (request denied at SAFR gate).")
+            st.markdown(reply)
             with st.expander("GovOps & Telemetry Panel"):
                 st.json(govops_panel)
 
-            st.session_state.messages.append(
-                {"role": "assistant", "content": summary, "verdict_card": verdict_card, "govops_panel": govops_panel}
-            )
+        st.session_state.messages.append({"role": "assistant", "content": reply, "govops_panel": govops_panel})
+        st.session_state.audit_log.append(
+            {"case_id": None, "prompt": prompt, "verdict_card": None, "govops_panel": govops_panel}
+        )
 
-        except TokenBudgetExceededError as exc:
-            error_message = f"🔴 FinOps circuit breaker tripped: {exc}"
-            st.error(error_message)
-            st.session_state.messages.append({"role": "assistant", "content": error_message})
+    else:
+        reset_trace_buffer()
+        ledger = FinOpsLedger(max_token_budget=int(token_budget))
+        case_id = f"CASE_{st.session_state.iteration_count}_{st.session_state.conversation_id[:8]}"
+
+        with st.chat_message("assistant"):
+            try:
+                with start_root_span(st.session_state.conversation_id, enduser_id, prompt) as root_span:
+                    traceparent = inject_traceparent().get("traceparent", "")
+
+                    usage_sink: dict = {}
+                    with start_worker_span(
+                        "neural_parsing", "chat", "neural_parser", **{"gen_ai.request.model": "auto"}
+                    ) as parser_span:
+                        payload = parse_legal_case_text(prompt, case_id=case_id, usage_sink=usage_sink)
+                        ledger.record(
+                            "neural_parsing",
+                            usage_sink.get("model", "mock-offline-parser"),
+                            usage_sink.get("input_tokens", 0),
+                            usage_sink.get("output_tokens", 0),
+                        )
+                        parser_span.set_attribute("gen_ai.usage.input_tokens", usage_sink.get("input_tokens", 0))
+                        parser_span.set_attribute("gen_ai.usage.output_tokens", usage_sink.get("output_tokens", 0))
+
+                    with start_worker_span("graph_gate", "execute_tool", "graph_gate"):
+                        graph_result = check_precedent_status(payload.cited_precedent)
+
+                    safr_result = evaluate_safr_envelope(
+                        payload,
+                        extraction_confidence=payload.extraction_confidence,
+                        claim_value_usd=payload.claim_value_sgd,
+                    )
+                    set_disposition(root_span, safr_result.verdict)
+
+                    deduction = None
+                    limitation = None
+                    if safr_result.disposition != SafrDisposition.DENY:
+                        with start_worker_span("symbolic_deduction", "execute_tool", "symbolic_engine"):
+                            deduction = run_symbolic_deduction(payload)
+
+                        if payload.contract_breach_date:
+                            with start_worker_span(
+                                "limitation_calculator", "execute_tool", "procedural_calculator"
+                            ):
+                                limitation = check_limitation_period(payload.contract_breach_date)
+
+                spans = get_captured_spans()
+                span_tree = build_span_tree(spans)
+                trace_id = span_tree[0]["trace_id"] if span_tree else None
+
+                if safr_result.disposition == SafrDisposition.DENY:
+                    summary = "🚫 This request was **denied** by the MAS SAFR governance envelope: " + "; ".join(
+                        safr_result.reasons
+                    )
+                else:
+                    summary = render_legal_advice_summary(payload, deduction, limitation, graph_result)
+                    if safr_result.disposition == SafrDisposition.ESCALATE:
+                        summary = "🧑‍⚖️ **Escalated for human-in-the-loop review.** " + summary
+
+                verdict_card = {
+                    "case_id": payload.case_id,
+                    "extracted_facts": payload.model_dump(),
+                    "graph_gate": graph_result,
+                    "symbolic_deduction": deduction,
+                    "limitation_check": limitation,
+                }
+                govops_panel = {
+                    "trace_id": trace_id,
+                    "traceparent": traceparent,
+                    "safr_disposition": safr_result.disposition.value,
+                    "safr_verdict": safr_result.verdict,
+                    "safr_reasons": safr_result.reasons,
+                    "finops": ledger.to_dict(),
+                    "span_tree": span_tree,
+                }
+
+                st.session_state.audit_log.append(
+                    {
+                        "case_id": payload.case_id,
+                        "prompt": prompt,
+                        "verdict_card": verdict_card,
+                        "govops_panel": govops_panel,
+                    }
+                )
+
+                st.markdown(summary)
+                with st.expander("Deterministic Verdict Card"):
+                    st.json(verdict_card)
+                with st.expander("Symbolic Proof Trace"):
+                    if deduction:
+                        for line in deduction["proof_trace"]:
+                            st.code(line, language="prolog")
+                    else:
+                        st.write("No symbolic deduction executed (request denied at SAFR gate).")
+                with st.expander("GovOps & Telemetry Panel"):
+                    st.json(govops_panel)
+
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": summary, "verdict_card": verdict_card, "govops_panel": govops_panel}
+                )
+
+            except TokenBudgetExceededError as exc:
+                error_message = f"🔴 FinOps circuit breaker tripped: {exc}"
+                st.error(error_message)
+                st.session_state.messages.append({"role": "assistant", "content": error_message})
 
 st.divider()
 approved = st.checkbox("I have reviewed the session output and approve it for the audit record (HITL sign-off)")

@@ -6,9 +6,9 @@ is strictly FORBIDDEN from deciding legal outcomes, validity, remedies,
 or duties of care - all of that is delegated to the declarative
 symbolic engine in `core.symbolic_engine`.
 
-Supports a live OpenAI or Anthropic endpoint (selected via whichever
-API key is present in the environment) with a deterministic offline
-mock fallback so the full pipeline always runs without any API keys.
+Provider priority: Groq (free tier, OpenAI-compatible endpoint) ->
+OpenAI -> Anthropic -> a deterministic offline mock fallback, so the
+full pipeline always runs without any API keys.
 """
 from __future__ import annotations
 
@@ -44,13 +44,21 @@ def parse_legal_case_text(
 ) -> LegalCaseFactPayload:
     """Extract a `LegalCaseFactPayload` from unstructured legal case text.
 
-    Tries a live OpenAI endpoint first, then Anthropic, then falls back
-    to a deterministic mock extractor so the pipeline runs offline. If
-    `usage_sink` is provided, it is populated with `model`,
-    `input_tokens`, and `output_tokens` for GovOps FinOps tracking.
+    Tries a live Groq endpoint first (free tier), then OpenAI, then
+    Anthropic, then falls back to a deterministic mock extractor so the
+    pipeline runs offline. If `usage_sink` is provided, it is populated
+    with `model`, `input_tokens`, and `output_tokens` for GovOps FinOps
+    tracking.
     """
+    groq_key = os.getenv("GROQ_API_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+
+    if groq_key:
+        try:
+            return _groq_extract_facts(case_text, case_id, groq_key, usage_sink)
+        except Exception:
+            pass
 
     if openai_key:
         try:
@@ -171,6 +179,39 @@ def _schema_prompt(case_text: str, case_id: str) -> str:
         f"Legal case text:\n{case_text}\n\n"
         "Respond with ONLY the JSON object, no prose."
     )
+
+
+def _groq_extract_facts(
+    case_text: str, case_id: str, api_key: str, usage_sink: Optional[dict]
+) -> LegalCaseFactPayload:
+    """Free-tier LLM endpoint: Groq exposes an OpenAI-compatible chat API."""
+    from openai import OpenAI  # imported lazily so openai stays an optional dependency
+
+    model = "llama-3.1-8b-instant"
+    client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+
+    response = client.chat.completions.create(
+        model=model,
+        temperature=0,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": _schema_prompt(case_text, case_id)},
+        ],
+    )
+    payload_dict = json.loads(response.choices[0].message.content)
+    payload_dict.setdefault("case_id", case_id)
+    payload_dict.setdefault("extraction_confidence", 0.85)
+
+    if usage_sink is not None:
+        usage = response.usage
+        usage_sink.update(
+            model=model,
+            input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+            output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+        )
+
+    return LegalCaseFactPayload(**payload_dict)
 
 
 def _openai_extract_facts(

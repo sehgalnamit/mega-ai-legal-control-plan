@@ -29,6 +29,7 @@ az containerapp up \
   --env-vars \
     "OPENAI_API_KEY=${OPENAI_API_KEY:-}" \
     "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}" \
+    "GROQ_API_KEY=${GROQ_API_KEY:-}" \
     "OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
 
 echo "Deployed. Fetch the public URL with:"
