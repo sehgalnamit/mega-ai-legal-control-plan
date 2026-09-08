@@ -47,8 +47,18 @@ STRICT RULES:
    ## 3. Practitioner Intake & Document Checklist
    - A bulleted checklist of document requests and fact-gaps to probe during intake.
    ## 4. Immediate Tactical Next Steps
-   - 2-4 actionable strategies: communication strategy, risk mitigation, procedural steps.
-7. Keep the entire analysis concise (under 350 words total).
+   - 2-4 actionable strategies: communication strategy, risk mitigation, procedural steps. Where
+     relevant, name the likely Rules of Court 2021 filing track (e.g. Originating Claim for a
+     disputed-facts action, Originating Application for a discrete/undisputed relief, or a
+     Summons for an interlocutory application such as an injunction within an existing action),
+     the supporting documents typically required (e.g. Statement of Claim, Supporting Affidavit,
+     Certificate of Urgency for an expedited hearing), and any interim remedy that may be
+     available (e.g. an ex parte Mareva injunction, an Expedited Protection Order). Always add
+     that the exact filing track, forms, and deadlines must be confirmed against the current
+     Rules of Court 2021, applicable Practice Directions, and the e-Litigation system before
+     filing - never state a specific number of days for a procedural deadline unless it is a
+     well-established statutory period (e.g. the Limitation Act 1959 limitation window).
+7. Keep the entire analysis concise (under 400 words total).
 
 SINGAPORE LEGAL LANDMARKS & GROUNDING TRUTHS
 When a case touches one of these areas, ground your analysis in the actual holding below
@@ -94,26 +104,35 @@ def generate_provisional_analysis(
     used to ground the draft rather than letting the model guess.
     """
     prompt = case_text if not domain_context else f"{case_text}\n\n[Reference context: {domain_context}]"
+    return _generate_with_fallback(SYSTEM_PROMPT, prompt, usage_sink, _OFFLINE_FALLBACK)
 
+
+def _generate_with_fallback(
+    system_prompt: str, prompt: str, usage_sink: Optional[dict], offline_fallback: str
+) -> str:
+    """Shared Groq -> OpenAI -> Anthropic -> offline-fallback provider chain,
+    parameterized by system prompt so the same fallback chain can drive both
+    the case-assessment memo and the procedural follow-up drafting tasks.
+    """
     for env_var, fn in (
-        ("GROQ_API_KEY", _groq_analysis),
-        ("OPENAI_API_KEY", _openai_analysis),
-        ("ANTHROPIC_API_KEY", _anthropic_analysis),
+        ("GROQ_API_KEY", _groq_chat),
+        ("OPENAI_API_KEY", _openai_chat),
+        ("ANTHROPIC_API_KEY", _anthropic_chat),
     ):
         api_key = os.getenv(env_var)
         if api_key:
             try:
-                return fn(prompt, api_key, usage_sink)
+                return fn(system_prompt, prompt, api_key, usage_sink)
             except Exception:
                 continue
 
     if usage_sink is not None:
         usage_sink.update(model="offline-no-provisional-analysis", input_tokens=0, output_tokens=0)
-    return _OFFLINE_FALLBACK
+    return offline_fallback
 
 
 def _chat_completion(
-    case_text: str, api_key: str, base_url: Optional[str], model: str, usage_sink: Optional[dict]
+    system_prompt: str, case_text: str, api_key: str, base_url: Optional[str], model: str, usage_sink: Optional[dict]
 ) -> str:
     from openai import OpenAI
 
@@ -127,7 +146,7 @@ def _chat_completion(
         max_tokens=1200,
         extra_body=extra_body,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": case_text},
         ],
     )
@@ -141,23 +160,25 @@ def _chat_completion(
     return response.choices[0].message.content
 
 
-def _groq_analysis(case_text: str, api_key: str, usage_sink: Optional[dict]) -> str:
-    return _chat_completion(case_text, api_key, "https://api.groq.com/openai/v1", "openai/gpt-oss-20b", usage_sink)
+def _groq_chat(system_prompt: str, case_text: str, api_key: str, usage_sink: Optional[dict]) -> str:
+    return _chat_completion(
+        system_prompt, case_text, api_key, "https://api.groq.com/openai/v1", "openai/gpt-oss-20b", usage_sink
+    )
 
 
-def _openai_analysis(case_text: str, api_key: str, usage_sink: Optional[dict]) -> str:
-    return _chat_completion(case_text, api_key, None, "gpt-4o-mini", usage_sink)
+def _openai_chat(system_prompt: str, case_text: str, api_key: str, usage_sink: Optional[dict]) -> str:
+    return _chat_completion(system_prompt, case_text, api_key, None, "gpt-4o-mini", usage_sink)
 
 
-def _anthropic_analysis(case_text: str, api_key: str, usage_sink: Optional[dict]) -> str:
+def _anthropic_chat(system_prompt: str, case_text: str, api_key: str, usage_sink: Optional[dict]) -> str:
     from anthropic import Anthropic
 
     client = Anthropic(api_key=api_key)
     response = client.messages.create(
         model="claude-3-5-sonnet-20241022",
-        max_tokens=400,
+        max_tokens=900,
         temperature=0.3,
-        system=SYSTEM_PROMPT,
+        system=system_prompt,
         messages=[{"role": "user", "content": case_text}],
     )
     if usage_sink is not None:
@@ -168,3 +189,83 @@ def _anthropic_analysis(case_text: str, api_key: str, usage_sink: Optional[dict]
             output_tokens=getattr(usage, "output_tokens", 0) or 0,
         )
     return response.content[0].text
+
+
+PROCEDURAL_FOLLOWUP_BANNER = "DRAFT WORK PRODUCT - NOT FILED - REQUIRES ATTORNEY REVIEW BEFORE USE"
+
+_PROCEDURAL_CAVEAT = (
+    "Use bracketed [PLACEHOLDER] text for any name, date, amount, or fact not explicitly given. "
+    "Never invent a specific number of days for a court deadline unless it is a well-established "
+    "statutory period (e.g. the Limitation Act 1959 window); otherwise describe the step "
+    "qualitatively and instruct the lawyer to confirm the exact timeframe against the current "
+    "Rules of Court 2021, applicable Practice Directions, and the e-Litigation system before "
+    "relying on it. POHA refers to the Protection from Harassment Act 2014 - never expand it as "
+    "any other statute name. This is a drafting aid, not a filed or verified document."
+)
+
+_FOLLOWUP_SYSTEM_PROMPTS: dict = {
+    "draft_filing": f"""You are a litigation drafting assistant helping a Singapore-qualified
+attorney prepare a first-draft skeleton of the primary court application or pre-action letter for
+a case, under the Rules of Court 2021 / e-Litigation system.
+
+STRICT RULES:
+1. Begin your response with the exact line: "{PROCEDURAL_FOLLOWUP_BANNER}"
+2. First draft a short Notice of Demand / pre-action letter of demand skeleton, then a skeleton
+   of the primary originating process: state whether an Originating Claim (facts in dispute,
+   adversarial) or an Originating Application (undisputed facts / a discrete relief) is the
+   likelier fit given the pleaded facts, and outline the key paragraphs it would need (parties,
+   relief sought, brief facts). If urgent interim relief is indicated by the facts (e.g. an
+   injunction), add a skeleton Supporting Affidavit outline (deponent, exhibits, urgency grounds).
+3. {_PROCEDURAL_CAVEAT}
+4. Keep the entire draft under 450 words.
+""",
+    "intake_checklist": f"""You are a litigation support assistant helping a Singapore-qualified
+attorney prepare an e-Litigation document and evidence intake checklist for a case.
+
+STRICT RULES:
+1. Begin your response with the exact line: "{PROCEDURAL_FOLLOWUP_BANNER}"
+2. Produce a bulleted checklist grouped under: (a) Documents to obtain from the client, (b)
+   Documents/evidence to obtain from third parties or via discovery, (c) Affidavit exhibits and
+   how they should be marked/numbered, (d) Any missing facts that must be verified before filing.
+   Tailor the checklist to the specific case facts and statutory framework given.
+3. {_PROCEDURAL_CAVEAT}
+4. Keep the entire checklist under 400 words.
+""",
+    "procedural_timeline": f"""You are a litigation support assistant helping a Singapore-qualified
+attorney understand the likely court filing procedure and tactical timeline for a case, under the
+Rules of Court 2021 / e-Litigation system.
+
+STRICT RULES:
+1. Begin your response with the exact line: "{PROCEDURAL_FOLLOWUP_BANNER}"
+2. Set out the sequence of procedural steps qualitatively (e.g. pre-action letter of demand ->
+   filing the originating process via e-Litigation -> service -> the other side's response ->
+   any interlocutory applications (e.g. injunction, striking out) -> case conference -> hearing/
+   trial), noting which State Courts / General Division of the High Court forum is likely given
+   the claim value or relief sought, and flagging any genuinely time-critical step (e.g. urgent
+   interim relief given an ongoing safety risk).
+3. {_PROCEDURAL_CAVEAT}
+4. Keep the entire timeline under 400 words.
+""",
+}
+
+_FOLLOWUP_OFFLINE_FALLBACK = (
+    f"{PROCEDURAL_FOLLOWUP_BANNER}\n\n"
+    "No live LLM endpoint is configured to draft this follow-up offline. Please configure "
+    "GROQ_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY, or ask a human reviewer to prepare this "
+    "document."
+)
+
+
+def generate_procedural_followup(task_key: str, case_context: str, usage_sink: Optional[dict] = None) -> str:
+    """Draft one of the interactive procedural follow-ups (draft filing skeleton,
+    intake checklist, or filing timeline) for a case already analyzed by
+    `generate_provisional_analysis` or the deterministic symbolic engine.
+
+    This is drafting assistance, not legal advice or a filed document - every
+    task system prompt carries its own `PROCEDURAL_FOLLOWUP_BANNER` and
+    verification caveat.
+    """
+    system_prompt = _FOLLOWUP_SYSTEM_PROMPTS.get(task_key)
+    if system_prompt is None:
+        raise ValueError(f"Unknown procedural follow-up task: {task_key!r}")
+    return _generate_with_fallback(system_prompt, case_context, usage_sink, _FOLLOWUP_OFFLINE_FALLBACK)

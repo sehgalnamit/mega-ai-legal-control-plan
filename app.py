@@ -44,7 +44,8 @@ from core.procedural_calculators import (
     check_undervalue_transaction,
     evaluate_poha_harassment_claim,
 )
-from core.provisional_analysis import generate_provisional_analysis
+from core.chat_session import FOLLOWUP_CHIPS, build_case_context
+from core.provisional_analysis import generate_procedural_followup, generate_provisional_analysis
 from core.response_renderer import render_legal_advice_summary
 from core.safety.content_moderation import check_content_safety
 from core.symbolic_engine import run_symbolic_deduction
@@ -256,6 +257,44 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
     }
     return summary, verdict_card, safr_panel_fields
 
+
+def _handle_followup_chip(chip_key: str, case_context: str) -> None:
+    """Generate one procedural follow-up drafting task (draft filing skeleton,
+    intake checklist, or filing timeline), append it as a new assistant
+    turn with GovOps telemetry, and rerun to display it."""
+    reset_trace_buffer()
+    ledger = FinOpsLedger(max_token_budget=int(token_budget))
+    with start_root_span(st.session_state.conversation_id, enduser_id, f"[followup:{chip_key}]") as root_span:
+        set_disposition(root_span, "ALLOW")
+        usage_sink: dict = {}
+        with start_worker_span("procedural_followup", "chat", "dynamic_synthesizer"):
+            followup_text = generate_procedural_followup(chip_key, case_context, usage_sink=usage_sink)
+        ledger.record(
+            "procedural_followup",
+            usage_sink.get("model", "offline-no-provisional-analysis"),
+            usage_sink.get("input_tokens", 0),
+            usage_sink.get("output_tokens", 0),
+        )
+    govops_panel = {"finops": ledger.to_dict(), "span_tree": build_span_tree(get_captured_spans())}
+    st.session_state.messages.append({"role": "assistant", "content": followup_text, "govops_panel": govops_panel})
+    st.session_state.audit_log.append(
+        {"case_id": None, "prompt": f"[followup:{chip_key}]", "verdict_card": None, "govops_panel": govops_panel}
+    )
+    st.session_state.iteration_count += 1
+    st.rerun()
+
+
+def _render_followup_chips(idx: int, case_context: str) -> None:
+    """Render the 'continue this session' procedural follow-up chips below a
+    legal memo. Reused both inline (same turn) and from message history (the
+    duplicated-render pattern already used for the diagnostic expanders)."""
+    st.caption("Continue this session:")
+    cols = st.columns(len(FOLLOWUP_CHIPS))
+    for col, chip in zip(cols, FOLLOWUP_CHIPS):
+        if col.button(chip.label, key=f"chip_{idx}_{chip.key}"):
+            _handle_followup_chip(chip.key, case_context)
+
+
 with st.sidebar:
     st.header("Session / GovOps Controls")
     enduser_id = st.text_input("enduser.id", value="lawyer_session_1")
@@ -279,7 +318,7 @@ st.caption(
     "real-time FinOps cost tracking on every turn."
 )
 
-for message in st.session_state.messages:
+for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if not practitioner_view:
@@ -289,6 +328,8 @@ for message in st.session_state.messages:
             if message.get("govops_panel"):
                 with st.expander("GovOps & Telemetry Panel"):
                     st.json(message["govops_panel"])
+        if message.get("followup_context") and idx == len(st.session_state.messages) - 1:
+            _render_followup_chips(idx, message["followup_context"])
 
 prompt = st.chat_input("Describe the dispute (e.g. the aircon maintenance scenario)...")
 
@@ -384,9 +425,21 @@ if prompt:
                     with st.expander("GovOps & Telemetry Panel"):
                         st.json(govops_panel)
 
+                followup_context = None
+                if safr_panel_fields["safr_disposition"] != SafrDisposition.DENY.value:
+                    followup_context = build_case_context(prompt, summary, patched_payload)
+
                 st.session_state.messages.append(
-                    {"role": "assistant", "content": summary, "verdict_card": verdict_card, "govops_panel": govops_panel}
+                    {
+                        "role": "assistant",
+                        "content": summary,
+                        "verdict_card": verdict_card,
+                        "govops_panel": govops_panel,
+                        "followup_context": followup_context,
+                    }
                 )
+                if followup_context:
+                    _render_followup_chips(len(st.session_state.messages) - 1, followup_context)
 
             except TokenBudgetExceededError as exc:
                 error_message = f"🔴 FinOps circuit breaker tripped: {exc}"
@@ -493,9 +546,21 @@ if prompt:
                     with st.expander("GovOps & Telemetry Panel"):
                         st.json(govops_panel)
 
+                followup_context = None
+                if safr_panel_fields["safr_disposition"] != SafrDisposition.DENY.value:
+                    followup_context = build_case_context(prompt, summary, payload)
+
                 st.session_state.messages.append(
-                    {"role": "assistant", "content": summary, "verdict_card": verdict_card, "govops_panel": govops_panel}
+                    {
+                        "role": "assistant",
+                        "content": summary,
+                        "verdict_card": verdict_card,
+                        "govops_panel": govops_panel,
+                        "followup_context": followup_context,
+                    }
                 )
+                if followup_context:
+                    _render_followup_chips(len(st.session_state.messages) - 1, followup_context)
 
             except TokenBudgetExceededError as exc:
                 error_message = f"🔴 FinOps circuit breaker tripped: {exc}"

@@ -150,4 +150,53 @@ def render_legal_advice_summary(
                 f"valid until {limitation['limitation_expiry_date']}."
             )
 
+    procedural_lines = _procedural_next_steps(payload, deduction, undervalue_check, poha_check)
+    if procedural_lines:
+        lines.append("**Immediate Procedural Next Steps** (Rules of Court 2021 / e-Litigation):")
+        lines.extend(procedural_lines)
+        lines.append(
+            "_Confirm the exact filing track, forms, and deadlines against the current Rules of "
+            "Court 2021, applicable Practice Directions, and the e-Litigation system before filing._"
+        )
+
     return "\n\n".join(lines) if lines else "No deterministic verdict could be derived from the extracted facts."
+
+
+def _procedural_next_steps(
+    payload: LegalCaseFactPayload,
+    deduction: Dict[str, Any],
+    undervalue_check: Optional[Dict[str, Any]],
+    poha_check: Optional[Dict[str, Any]],
+) -> List[str]:
+    """Deterministic, rule-based mapping from already-computed verdict flags
+    to a likely Rules of Court 2021 filing track - never a new legal
+    judgment, only a formatting layer over facts already decided above.
+    """
+    steps: List[str] = []
+    rdc = deduction.get("rdc_concrete") or {}
+    if payload.breach_term_type is not None and rdc.get("right_to_terminate"):
+        steps.append(
+            "- Consider an **Originating Claim** pleading breach of contract and claiming damages, "
+            "particularized in a Statement of Claim; if urgent interim relief (e.g. an injunction) is "
+            "needed, this is typically sought by Summons within the action, supported by an affidavit."
+        )
+    if undervalue_check is not None and undervalue_check.get("is_voidable_transaction"):
+        steps.append(
+            "- The liquidator may apply by **Originating Application** under IRDA s 224 for an order "
+            "avoiding the transaction, supported by an affidavit exhibiting the transaction documents "
+            "and evidence of insolvency."
+        )
+    if poha_check is not None and poha_check.get("protection_order_likely"):
+        steps.append(
+            "- An **Expedited Protection Order** may be sought by Originating Application under POHA "
+            "s 13, supported by an affidavit; consider whether a Certificate of Urgency is warranted "
+            "given the ongoing risk to personal safety."
+        )
+    restraint = deduction.get("restraint_of_trade") or {}
+    if restraint.get("clause_present"):
+        steps.append(
+            "- If the counterparty applies for (or threatens) an interim injunction to enforce the "
+            "restraint clause, prepare affidavit evidence addressing the *Man Financial* two-tier "
+            "test, filed by Summons in response to that application."
+        )
+    return steps
