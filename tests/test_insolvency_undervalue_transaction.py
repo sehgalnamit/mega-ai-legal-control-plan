@@ -100,3 +100,20 @@ def test_logistics_corp_case_produces_a_real_voidable_transaction_verdict():
     )
     assert "voidable as a transaction at an undervalue" in summary
     assert "Spandeck" not in summary
+
+
+def test_nominal_consideration_phrasing_is_also_extracted():
+    """Regression test: "for a nominal consideration of S$X" previously
+    failed to extract because the regex only matched "for S$X" directly.
+    """
+    text = (
+        "Client G is the Liquidator of Logistics Corp (wound up on 2026-02-01). The company transferred "
+        "title of a commercial warehouse worth S$2,800,000 to Holding Co H (its 100% parent company) for "
+        "a nominal consideration of S$100,000 on 2025-06-15. Client G wants to claw back the warehouse "
+        "under IRDA."
+    )
+    payload = parse_legal_case_text(text, case_id="nominal-consideration-test")
+
+    assert payload.asset_market_value_sgd == 2_800_000.0
+    assert payload.consideration_paid_sgd == 100_000.0
+    assert is_unmapped_domain(payload) is False

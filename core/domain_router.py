@@ -20,6 +20,7 @@ KNOWN_DOMAINS = (
     "employment_restraint_of_trade",  # Man Financial two-tier test
     "liquidated_damages_penalty",  # Denka Advantech penalty rule
     "insolvency_undervalue_transaction",  # IRDA 2018 ss 224-226
+    "poha_harassment",  # POHA 2014 ss 3, 4, 15
 )
 
 
@@ -45,6 +46,8 @@ def classify_domains(payload: LegalCaseFactPayload) -> List[str]:
         and payload.winding_up_date is not None
     ):
         domains.append("insolvency_undervalue_transaction")
+    if payload.has_harassment_claim:
+        domains.append("poha_harassment")
 
     return domains
 

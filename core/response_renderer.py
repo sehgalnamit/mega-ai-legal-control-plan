@@ -18,6 +18,7 @@ def render_legal_advice_summary(
     graph_result: Dict[str, Any],
     penalty_check: Optional[Dict[str, Any]] = None,
     undervalue_check: Optional[Dict[str, Any]] = None,
+    poha_check: Optional[Dict[str, Any]] = None,
     additional_graph_results: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """Format already-computed verdicts into readable prose."""
@@ -108,6 +109,24 @@ def render_legal_advice_summary(
             lines.append(
                 "The transfer **does not meet the test** for a voidable transaction at an "
                 "undervalue under IRDA 2018 ss 224-226 on these facts."
+            )
+
+    if poha_check is not None:
+        if poha_check["protection_order_likely"]:
+            lines.append(
+                "A civil **Protection Order is likely** to be granted under the Protection from "
+                "Harassment Act 2014 (POHA) ss 3, 4 & 15"
+                + (
+                    ", with a strong case for urgent interim relief given the combination of "
+                    "doxxing and incitement to third-party harassment."
+                    if poha_check["doxxing_with_incitement_to_third_party_harassment"]
+                    else "."
+                )
+            )
+        else:
+            lines.append(
+                "The facts **do not establish** the course-of-conduct-plus-alarm/distress test "
+                "for a Protection Order under POHA ss 3, 4 & 15 on these facts alone."
             )
 
     # Only relevant for tort-flavoured disputes (an injury type or asserted

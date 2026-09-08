@@ -83,6 +83,11 @@ class LegalCaseFactPayload(BaseModel):
     is_connected_person: bool = False
     transaction_date: Optional[str] = None
     winding_up_date: Optional[str] = None
+    # Harassment claim (Protection from Harassment Act 2014 (POHA) ss 3, 4, 15).
+    has_harassment_claim: bool = False
+    publishes_identifying_information: bool = False
+    urges_third_party_harassment: bool = False
+    causes_alarm_distress_or_fear: bool = False
     # GovOps attribute: neural-extraction self-reported confidence, used
     # only to risk-gate the pipeline (never to decide a legal outcome).
     extraction_confidence: float = 1.0

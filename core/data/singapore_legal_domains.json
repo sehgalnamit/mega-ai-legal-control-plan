@@ -34,12 +34,12 @@
         },
         {
           "name": "breach_and_termination",
-          "keywords": ["condition", "warranty", "innominate term", "discharge by breach", "repudiation", "right to terminate"],
+          "keywords": ["condition", "warranty", "innominate term", "discharge by breach", "repudiation", "right to terminate", "time is of the essence", "of the essence", "wrongful termination", "failed to deliver", "supply agreement"],
           "implemented": true
         },
         {
           "name": "remedies_and_restitution",
-          "keywords": ["expectation loss", "reliance loss", "remoteness", "mitigation", "liquidated damages", "penalty clause", "unjust enrichment", "quantum meruit"],
+          "keywords": ["expectation loss", "reliance loss", "remoteness", "mitigation", "liquidated damages", "penalty clause", "unjust enrichment", "quantum meruit", "cover damages", "market cover"],
           "implemented": true
         }
       ]
@@ -99,7 +99,7 @@
         "Hii Chii Kok v Ooi Peng Jin London Lucien [2017] 2 SLR 492",
         "Hedley Byrne & Co Ltd v Heller & Partners Ltd [1964] AC 465"
       ],
-      "rule_module": "core.symbolic_engine",
+      "rule_module": "core.symbolic_engine, core.procedural_calculators",
       "sub_domains": [
         {
           "name": "negligence_and_economic_loss",
@@ -133,8 +133,8 @@
         },
         {
           "name": "statutory_and_intentional_torts",
-          "keywords": ["harassment", "protection from harassment", "poha", "conversion", "trespass"],
-          "implemented": false
+          "keywords": ["harassment", "protection from harassment", "poha", "conversion", "trespass", "doxxing", "doxx"],
+          "implemented": true
         }
       ]
     },
@@ -185,7 +185,7 @@
       "sub_domains": [
         {
           "name": "commercial_and_residential_leases",
-          "keywords": ["tenancy", "lease", "quiet enjoyment", "forfeiture", "re-entry", "security deposit", "distress"],
+          "keywords": ["tenancy", "lease", "quiet enjoyment", "forfeiture", "re-entry", "security deposit", "distress act", "levy of distress", "distress for rent"],
           "implemented": false
         },
         {

@@ -139,3 +139,33 @@ def check_undervalue_transaction(
             "transaction at an undervalue with connected-person insolvency presumption."
         ),
     }
+
+
+# Protection from Harassment Act 2014 (POHA) ss 3, 4 & 15 (simplified): a
+# course of conduct (publishing identifying information and/or inciting
+# third parties to harass) that causes alarm, distress, or fear grounds
+# a Protection Order. Kept as a plain boolean test rather than a
+# pyDatalog rule for simplicity - there is no negation/derived-predicate
+# composition needed here, unlike the Man Financial two-tier test.
+def evaluate_poha_harassment_claim(
+    publishes_identifying_information: bool,
+    urges_third_party_harassment: bool,
+    causes_alarm_distress_or_fear: bool,
+) -> Dict[str, object]:
+    """Evaluate a POHA harassment claim for a civil Protection Order."""
+    course_of_conduct_established = publishes_identifying_information or urges_third_party_harassment
+    doxxing_with_incitement = publishes_identifying_information and urges_third_party_harassment
+    protection_order_likely = course_of_conduct_established and causes_alarm_distress_or_fear
+
+    return {
+        "course_of_conduct_established": course_of_conduct_established,
+        "doxxing_with_incitement_to_third_party_harassment": doxxing_with_incitement,
+        "causes_alarm_distress_or_fear": causes_alarm_distress_or_fear,
+        "protection_order_likely": protection_order_likely,
+        "statutory_basis": (
+            "Protection from Harassment Act 2014 (POHA) ss 3, 4 & 15 - a course of conduct causing "
+            "alarm, distress, or fear grounds a civil Protection Order; publishing identifying "
+            "information combined with inciting third-party harassment strengthens the case for "
+            "urgent interim relief."
+        ),
+    }

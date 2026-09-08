@@ -39,6 +39,7 @@ from core.procedural_calculators import (
     check_limitation_period,
     check_liquidated_damages_penalty,
     check_undervalue_transaction,
+    evaluate_poha_harassment_claim,
 )
 from core.provisional_analysis import generate_provisional_analysis
 from core.response_renderer import render_legal_advice_summary
@@ -125,6 +126,7 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
     limitation = None
     penalty_check = None
     undervalue_check = None
+    poha_check = None
     provisional_text = None
     unmapped_domain_analysis = None
     matched_domains = []
@@ -169,6 +171,16 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
                     payload.winding_up_date,
                 )
 
+        if payload.has_harassment_claim:
+            with start_worker_span("poha_harassment_calculator", "execute_tool", "procedural_calculator"):
+                poha_check = evaluate_poha_harassment_claim(
+                    payload.publishes_identifying_information,
+                    payload.urges_third_party_harassment,
+                    payload.causes_alarm_distress_or_fear,
+                )
+        else:
+            poha_check = None
+
         if unmapped:
             domain_context = None
             if matched_domains:
@@ -212,6 +224,7 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
             graph_result,
             penalty_check=penalty_check,
             undervalue_check=undervalue_check,
+            poha_check=poha_check,
             additional_graph_results=additional_graph_results,
         )
         if safr_result.disposition == SafrDisposition.ESCALATE:
@@ -230,6 +243,7 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
         "limitation_check": limitation,
         "penalty_check": penalty_check,
         "undervalue_transaction_check": undervalue_check,
+        "poha_harassment_check": poha_check,
         "provisional_analysis": provisional_text,
     }
     safr_panel_fields = {

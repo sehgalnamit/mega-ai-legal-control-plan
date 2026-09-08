@@ -164,7 +164,7 @@ def _mock_extract_facts(case_text: str, case_id: str) -> dict:
         k in text for k in ("standard form", "boilerplate", "non-negotiable terms")
     )
 
-    if "condition" in text and "innominate" not in text:
+    if "innominate" not in text and ("condition" in text or "of the essence" in text):
         breach_term_type: Optional[BreachTermType] = BreachTermType.CONDITION
     elif "warranty" in text:
         breach_term_type = BreachTermType.WARRANTY
@@ -220,8 +220,12 @@ def _mock_extract_facts(case_text: str, case_id: str) -> dict:
     winding_up_date: Optional[str] = None
     if has_insolvency_clawback_claim:
         asset_market_value_sgd = _parse_currency_amount(case_text, r"worth")
+        # Allows descriptive words between "for" and the amount, e.g.
+        # "for a nominal consideration of S$100,000", not just "for S$100,000".
         for_match = re.search(
-            rf"\bfor\s+s\$\s?([\d,]+(?:\.\d+)?)\s*{_CURRENCY_SUFFIX_PATTERN}\b", case_text, re.IGNORECASE
+            rf"\bfor\b[^.\n]{{0,40}}?s\$\s?([\d,]+(?:\.\d+)?)\s*{_CURRENCY_SUFFIX_PATTERN}\b",
+            case_text,
+            re.IGNORECASE,
         )
         if for_match:
             for_multiplier = _CURRENCY_MULTIPLIERS.get((for_match.group(2) or "").lower(), 1)
@@ -238,6 +242,20 @@ def _mock_extract_facts(case_text: str, case_id: str) -> dict:
         all_dates = re.findall(r"\d{4}-\d{2}-\d{2}", case_text)
         remaining_dates = [d for d in all_dates if d != winding_up_date]
         transaction_date = remaining_dates[0] if remaining_dates else None
+
+    has_harassment_claim = any(
+        k in text for k in ("harassment", "poha", "protection from harassment", "harasser")
+    )
+    publishes_identifying_information = has_harassment_claim and any(
+        k in text
+        for k in ("doxx", "residential address", "home address", "phone number", "personal information", "identifying information")
+    )
+    urges_third_party_harassment = has_harassment_claim and any(
+        k in text for k in ("urged", "urging", "incit", "encouraged others", "subscribers to")
+    )
+    causes_alarm_distress_or_fear = has_harassment_claim and any(
+        k in text for k in ("alarm", "distress", "fear", "afraid")
+    )
 
     breach_match = re.search(r"(\d{4}-\d{2}-\d{2})", case_text)
     contract_breach_date = breach_match.group(1) if breach_match else None
@@ -281,6 +299,10 @@ def _mock_extract_facts(case_text: str, case_id: str) -> dict:
         "is_connected_person": is_connected_person,
         "transaction_date": transaction_date,
         "winding_up_date": winding_up_date,
+        "has_harassment_claim": has_harassment_claim,
+        "publishes_identifying_information": publishes_identifying_information,
+        "urges_third_party_harassment": urges_third_party_harassment,
+        "causes_alarm_distress_or_fear": causes_alarm_distress_or_fear,
         "extraction_confidence": 0.65,
     }
 
