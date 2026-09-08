@@ -260,6 +260,9 @@ with st.sidebar:
     st.header("Session / GovOps Controls")
     enduser_id = st.text_input("enduser.id", value="lawyer_session_1")
     token_budget = st.number_input("FinOps token budget cap", min_value=1000, value=20_000, step=1000)
+    practitioner_view = st.checkbox(
+        "\U0001f469\u200d\u2696\ufe0f Practitioner View (hide diagnostic/GovOps panels)", value=False
+    )
     st.caption(f"gen_ai.conversation.id: `{st.session_state.conversation_id}`")
     st.caption(f"Iterations: {st.session_state.iteration_count} / {MAX_ITERATIONS_PER_CONVERSATION}")
     if st.button("Reset conversation"):
@@ -279,12 +282,13 @@ st.caption(
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        if message.get("verdict_card"):
-            with st.expander("Deterministic Verdict Card"):
-                st.json(message["verdict_card"])
-        if message.get("govops_panel"):
-            with st.expander("GovOps & Telemetry Panel"):
-                st.json(message["govops_panel"])
+        if not practitioner_view:
+            if message.get("verdict_card"):
+                with st.expander("Deterministic Verdict Card"):
+                    st.json(message["verdict_card"])
+            if message.get("govops_panel"):
+                with st.expander("GovOps & Telemetry Panel"):
+                    st.json(message["govops_panel"])
 
 prompt = st.chat_input("Describe the dispute (e.g. the aircon maintenance scenario)...")
 
@@ -374,10 +378,11 @@ if prompt:
                 st.session_state.last_case_payload = patched_payload
 
                 st.markdown(summary)
-                with st.expander("Deterministic Verdict Card"):
-                    st.json(verdict_card)
-                with st.expander("GovOps & Telemetry Panel"):
-                    st.json(govops_panel)
+                if not practitioner_view:
+                    with st.expander("Deterministic Verdict Card"):
+                        st.json(verdict_card)
+                    with st.expander("GovOps & Telemetry Panel"):
+                        st.json(govops_panel)
 
                 st.session_state.messages.append(
                     {"role": "assistant", "content": summary, "verdict_card": verdict_card, "govops_panel": govops_panel}
@@ -412,8 +417,9 @@ if prompt:
                 "span_tree": build_span_tree(get_captured_spans()),
             }
             st.markdown(reply)
-            with st.expander("GovOps & Telemetry Panel"):
-                st.json(govops_panel)
+            if not practitioner_view:
+                with st.expander("GovOps & Telemetry Panel"):
+                    st.json(govops_panel)
 
         st.session_state.messages.append({"role": "assistant", "content": reply, "govops_panel": govops_panel})
         st.session_state.audit_log.append(
@@ -472,17 +478,20 @@ if prompt:
                 )
 
                 st.markdown(summary)
-                with st.expander("Deterministic Verdict Card"):
-                    st.json(verdict_card)
-                with st.expander("Symbolic Proof Trace"):
-                    deduction = verdict_card.get("symbolic_deduction")
-                    if deduction:
-                        for line in deduction["proof_trace"]:
-                            st.code(line, language="prolog")
-                    else:
-                        st.write("No symbolic deduction executed (request denied at SAFR gate, or domain unmapped).")
-                with st.expander("GovOps & Telemetry Panel"):
-                    st.json(govops_panel)
+                if not practitioner_view:
+                    with st.expander("Deterministic Verdict Card"):
+                        st.json(verdict_card)
+                    with st.expander("Symbolic Proof Trace"):
+                        deduction = verdict_card.get("symbolic_deduction")
+                        if deduction:
+                            for line in deduction["proof_trace"]:
+                                st.code(line, language="prolog")
+                        else:
+                            st.write(
+                                "No symbolic deduction executed (request denied at SAFR gate, or domain unmapped)."
+                            )
+                    with st.expander("GovOps & Telemetry Panel"):
+                        st.json(govops_panel)
 
                 st.session_state.messages.append(
                     {"role": "assistant", "content": summary, "verdict_card": verdict_card, "govops_panel": govops_panel}
