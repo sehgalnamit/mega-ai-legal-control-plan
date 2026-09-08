@@ -38,7 +38,10 @@ STRICT RULES:
    relevant statutory frameworks (e.g. Limitation Act 1959, UCTA 1977) and leading case law
    objectively.
 6. Structure the remainder of your response (after the banner line) into exactly these 4
-   sections:
+   sections - ALWAYS include all 4 section headers verbatim, even for a narrow follow-up
+   question (e.g. a bare citation request) that is not a full case narrative; if a section has
+   little to say for that kind of question, write one short line under it rather than omitting
+   the header:
    ## 1. Case Overview & Key Facts
    - Parties, trigger event, and key chronology/monetary/contractual details stated by the client.
    ## 2. Preliminary Legal Assessment & Risk Mapping
@@ -92,6 +95,42 @@ _OFFLINE_FALLBACK = (
     "OPENAI_API_KEY / ANTHROPIC_API_KEY to enable a provisional draft."
 )
 
+_REQUIRED_SECTION_HEADERS = (
+    "## 1. Case Overview & Key Facts",
+    "## 2. Preliminary Legal Assessment & Risk Mapping",
+    "## 3. Practitioner Intake & Document Checklist",
+    "## 4. Immediate Tactical Next Steps",
+)
+
+
+def _ensure_four_sections(text: str) -> str:
+    """Deterministic safety net: narrow follow-up questions (e.g. a bare
+    citation request) sometimes cause the LLM to skip the mandated 4-section
+    structure even though the system prompt requires it. Rather than trust
+    instruction-following alone, wrap any non-conforming response into the
+    same 4 headers so every provisional analysis has an identical shape.
+    """
+    if all(header in text for header in _REQUIRED_SECTION_HEADERS):
+        return text
+
+    if text.startswith(PROVISIONAL_BANNER):
+        body = text[len(PROVISIONAL_BANNER):].lstrip("\n").strip()
+    else:
+        body = text.strip()
+
+    return (
+        f"{PROVISIONAL_BANNER}\n\n"
+        f"{_REQUIRED_SECTION_HEADERS[0]}\n"
+        "- See the case facts referenced in the analysis below.\n\n"
+        f"{_REQUIRED_SECTION_HEADERS[1]}\n"
+        f"{body}\n\n"
+        f"{_REQUIRED_SECTION_HEADERS[2]}\n"
+        "- Verify the facts, citations, and authorities above against the client's instructions "
+        "and the case file before relying on them.\n\n"
+        f"{_REQUIRED_SECTION_HEADERS[3]}\n"
+        "- Escalate to a human reviewer to confirm this analysis and determine next steps."
+    )
+
 
 def generate_provisional_analysis(
     case_text: str, usage_sink: Optional[dict] = None, domain_context: Optional[str] = None
@@ -104,7 +143,8 @@ def generate_provisional_analysis(
     used to ground the draft rather than letting the model guess.
     """
     prompt = case_text if not domain_context else f"{case_text}\n\n[Reference context: {domain_context}]"
-    return _generate_with_fallback(SYSTEM_PROMPT, prompt, usage_sink, _OFFLINE_FALLBACK)
+    result = _generate_with_fallback(SYSTEM_PROMPT, prompt, usage_sink, _OFFLINE_FALLBACK)
+    return _ensure_four_sections(result)
 
 
 def _generate_with_fallback(

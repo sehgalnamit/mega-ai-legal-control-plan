@@ -24,6 +24,21 @@ def test_offline_fallback_always_carries_the_provisional_banner():
     assert usage["model"] == "offline-no-provisional-analysis"
 
 
+def test_offline_fallback_still_carries_all_4_section_headers():
+    for key in ("GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+        os.environ.pop(key, None)
+
+    result = generate_provisional_analysis("A dispute about a defamatory social media post.")
+
+    for header in (
+        "## 1. Case Overview & Key Facts",
+        "## 2. Preliminary Legal Assessment & Risk Mapping",
+        "## 3. Practitioner Intake & Document Checklist",
+        "## 4. Immediate Tactical Next Steps",
+    ):
+        assert header in result
+
+
 def test_procedural_followup_offline_fallback_carries_its_own_banner():
     for key in ("GROQ_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
         os.environ.pop(key, None)

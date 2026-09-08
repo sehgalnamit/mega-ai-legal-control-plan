@@ -21,7 +21,11 @@ def render_legal_advice_summary(
     poha_check: Optional[Dict[str, Any]] = None,
     additional_graph_results: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
-    """Format already-computed verdicts into readable prose."""
+    """Format already-computed verdicts into the same 4-section practitioner
+    memo format used by the LLM provisional-analysis fallback, so a lawyer
+    sees a consistent structure whether the case was handled by the
+    deterministic symbolic engine or escalated for a provisional LLM draft.
+    """
     if deduction is None:
         return "No deterministic verdict could be derived - the request was denied at the SAFR gate."
 
@@ -151,15 +155,104 @@ def render_legal_advice_summary(
             )
 
     procedural_lines = _procedural_next_steps(payload, deduction, undervalue_check, poha_check)
+    next_steps_body = "\n".join(procedural_lines) if procedural_lines else (
+        "- Escalate to the supervising attorney to determine the appropriate next steps; no "
+        "deterministic procedural mapping applies to these facts."
+    )
     if procedural_lines:
-        lines.append("**Immediate Procedural Next Steps** (Rules of Court 2021 / e-Litigation):")
-        lines.extend(procedural_lines)
-        lines.append(
-            "_Confirm the exact filing track, forms, and deadlines against the current Rules of "
-            "Court 2021, applicable Practice Directions, and the e-Litigation system before filing._"
+        next_steps_body += (
+            "\n\n_Confirm the exact filing track, forms, and deadlines against the current Rules "
+            "of Court 2021, applicable Practice Directions, and the e-Litigation system before filing._"
         )
 
-    return "\n\n".join(lines) if lines else "No deterministic verdict could be derived from the extracted facts."
+    overview_lines = _case_overview_lines(payload)
+    checklist_lines = _document_checklist(payload, deduction, undervalue_check, poha_check)
+
+    sections = [
+        "## 1. Case Overview & Key Facts",
+        "\n".join(overview_lines),
+        "## 2. Preliminary Legal Assessment & Risk Mapping",
+        "\n\n".join(lines) if lines else "No deterministic verdict could be derived from the extracted facts.",
+        "## 3. Practitioner Intake & Document Checklist",
+        "\n".join(checklist_lines),
+        "## 4. Immediate Tactical Next Steps",
+        next_steps_body,
+    ]
+    return "\n\n".join(sections)
+
+
+def _case_overview_lines(payload: LegalCaseFactPayload) -> List[str]:
+    """Restate already-extracted structured facts as a readable overview -
+    never inventing a new fact, only formatting what the neural layer or
+    fact-patch follow-up already put on the payload.
+    """
+    lines = [f"- Case reference: `{payload.case_id}`."]
+    if payload.cited_precedent and payload.cited_precedent != "Unspecified Precedent":
+        lines.append(f"- Cited precedent: *{payload.cited_precedent}*.")
+    if payload.contract_breach_date:
+        lines.append(f"- Contract breach date: {payload.contract_breach_date}.")
+    if payload.claim_value_sgd:
+        lines.append(f"- Claim value: S${payload.claim_value_sgd:,.0f}.")
+    if payload.transaction_date and payload.winding_up_date:
+        lines.append(
+            f"- Impugned transaction date: {payload.transaction_date}; winding-up date: "
+            f"{payload.winding_up_date}."
+        )
+    if payload.asset_market_value_sgd is not None and payload.consideration_paid_sgd is not None:
+        lines.append(
+            f"- Asset market value: S${payload.asset_market_value_sgd:,.0f}; consideration paid: "
+            f"S${payload.consideration_paid_sgd:,.0f}."
+        )
+    if payload.restraint_duration_months is not None:
+        scope_suffix = f"; geographic scope: {payload.restraint_geography_scope}." if payload.restraint_geography_scope else "."
+        lines.append(f"- Restraint of trade duration: {payload.restraint_duration_months} months{scope_suffix}")
+    if payload.monthly_salary_sgd is not None and payload.liquidated_damages_sgd is not None:
+        lines.append(
+            f"- Monthly salary: S${payload.monthly_salary_sgd:,.0f}; liquidated damages clause: "
+            f"S${payload.liquidated_damages_sgd:,.0f}."
+        )
+    if payload.has_harassment_claim:
+        lines.append(
+            "- Harassment claim pleaded: publishes identifying information="
+            f"{payload.publishes_identifying_information}, urges third-party harassment="
+            f"{payload.urges_third_party_harassment}, causes alarm/distress/fear="
+            f"{payload.causes_alarm_distress_or_fear}."
+        )
+    return lines
+
+
+def _document_checklist(
+    payload: LegalCaseFactPayload,
+    deduction: Dict[str, Any],
+    undervalue_check: Optional[Dict[str, Any]],
+    poha_check: Optional[Dict[str, Any]],
+) -> List[str]:
+    """Deterministic, rule-based intake checklist keyed off which rule
+    modules actually fired for this payload - not an LLM guess."""
+    items: List[str] = []
+    if payload.breach_term_type is not None:
+        items.append("- The executed contract (all clauses, not only the breached term) and any variations.")
+        items.append("- Correspondence evidencing the breach date and any notice of termination given.")
+    if payload.has_exemption_clause:
+        items.append("- Evidence of the bargaining process (standard form terms? any inducement offered?).")
+    restraint = (deduction or {}).get("restraint_of_trade") or {}
+    if restraint.get("clause_present"):
+        items.append(
+            "- Evidence of any trade secrets/confidential information/client lists the employee "
+            "actually had access to."
+        )
+    if undervalue_check is not None:
+        items.append(
+            "- Valuation evidence for the transferred asset and proof of the company's inability "
+            "to pay its debts at the transaction date."
+        )
+    if poha_check is not None:
+        items.append("- Screenshots/recordings of the offending posts, call logs, and evidence of distress caused.")
+    if payload.injury_type is not None or payload.factual_foreseeability:
+        items.append("- Evidence going to foreseeability and proximity for the Spandeck duty-of-care analysis.")
+    if not items:
+        items.append("- Confirm all facts above with the client and request supporting documentary evidence.")
+    return items
 
 
 def _procedural_next_steps(

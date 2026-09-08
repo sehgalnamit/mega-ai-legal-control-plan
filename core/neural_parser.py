@@ -79,6 +79,24 @@ STRICT RULES:
    - `causes_alarm_distress_or_fear`: true if the victim is described as
      experiencing alarm, distress, fear, or a threat to personal safety
      as a result.
+7. Monetary amounts - parse the FULL number exactly as stated, including
+   every digit and comma group (e.g. "S$2,800,000" is 2800000, NEVER
+   800000 or 2800; "S$2.8 million" is 2800000). Never truncate, round to
+   the nearest million, or drop leading digits of a monetary figure.
+8. Insolvency/IRDA clawback fields:
+   - `asset_market_value_sgd`: the fair/market value of the asset that
+     was transferred away, as pleaded (not the consideration paid for it).
+   - `consideration_paid_sgd`: the amount actually paid/received by the
+     debtor company for that asset in the impugned transaction. Do not
+     default this to 0 unless the text explicitly says no consideration
+     was paid at all - a stated "nominal consideration of S$X" is X, not 0.
+   - `is_connected_person`: true if the transaction counterparty is a
+     connected person under insolvency law - a parent/subsidiary/
+     affiliate/related company, a director, a shareholder, or a family
+     member of a director/shareholder - not merely an arm's-length third
+     party. A counterparty described as the debtor's "parent company",
+     "100% parent", "subsidiary", "affiliate", or "related company" is
+     ALWAYS a connected person.
 """
 
 
