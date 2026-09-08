@@ -85,6 +85,18 @@ neither layer can silently drift out of sync with the other.
 8. **Safety before anything else.** `core/safety/content_moderation.py`
    screens every message before the router, neural parser, or symbolic
    engine ever see it.
+9. **Open-world handling, not silent force-fitting.** Singapore law
+   isn't a closed set of statutes — `core/domain_router.py` explicitly
+   classifies which known rule domains a case engages, and if it
+   engages *none* of them, the pipeline reports `UNMAPPED_DOMAIN` and
+   escalates for HITL review with an explicitly labeled provisional LLM
+   draft (`core/provisional_analysis.py`), instead of silently
+   returning an empty/all-false verdict from irrelevant rule modules.
+10. **Stateful multi-turn HITL follow-ups.** `core/followup_intent.py`
+    detects short follow-up instructions ("what if Client C had access
+    to trade secrets?") and re-evaluates the *previous* turn's payload
+    with the patched fact, instead of re-parsing a brand new case from
+    an incomplete follow-up message.
 
 ## Validation: Why Symbolic Rules + Smaller Datasets
 
@@ -123,15 +135,19 @@ international **LKIF** and **SALI** ontology frameworks.
 │   ├── schemas.py                 # Pydantic contracts (facts + GovOps audit record)
 │   ├── neural_parser.py           # Groq (free) / OpenAI / Anthropic / offline mock fact extractor
 │   ├── chat_router.py             # Legal-case vs. generic-chat routing + generic LLM reply
+│   ├── domain_router.py           # Classifies known rule domains / flags UNMAPPED_DOMAIN
+│   ├── provisional_analysis.py    # Labeled provisional LLM draft for unmapped-domain escalations
+│   ├── followup_intent.py         # Multi-turn HITL fact-patch detector ("what if X?")
 │   ├── graph_gate.py              # Neo4j/NetworkX precedent hierarchy gate
-│   ├── symbolic_engine.py         # pyDatalog engine (Spandeck, UCTA, RDC Concrete)
-│   ├── procedural_calculators.py  # Limitation Act 1959 calendar math
+│   ├── symbolic_engine.py         # pyDatalog engine (Spandeck, UCTA, RDC Concrete, restraint of trade)
+│   ├── procedural_calculators.py  # Limitation Act 1959 + Denka Advantech penalty calendar/numeric math
 │   ├── response_renderer.py       # Deterministic plain-English verdict formatting
 │   ├── safety/
 │   │   └── content_moderation.py  # Harmful-content guardrail (OpenAI moderation + offline fallback)
 │   └── govops/
 │       ├── tracer.py              # OpenTelemetry spans & W3C traceparent propagation
 │       ├── finops.py              # Token accounting, cost calc, circuit breaker, iteration cap
+│       ├── extraction_validator.py # Flags neural-extraction/raw-text contradictions
 │       └── safr_envelope.py       # MAS SAFR runtime disposition (ALLOW/DENY/ESCALATE)
 ├── schemas/
 │   └── legal_ontology.py          # Jurisdiction-agnostic Contract/Clause/Entity/Obligation ontology

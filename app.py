@@ -12,6 +12,8 @@ import uuid
 import streamlit as st
 
 from core.chat_router import generate_generic_reply, is_legal_case_message
+from core.domain_router import classify_domains, is_unmapped_domain
+from core.followup_intent import detect_fact_patch
 from core.govops.finops import (
     MAX_ITERATIONS_PER_CONVERSATION,
     FinOpsLedger,
@@ -20,7 +22,7 @@ from core.govops.finops import (
     check_iteration_cap,
 )
 from core.govops.safr_envelope import SafrDisposition, evaluate_safr_envelope
-from core.govops.extraction_validator import validate_extraction_consistency
+from core.govops.extraction_validator import ConsistencyCheckResult, validate_extraction_consistency
 from core.govops.tracer import (
     build_span_tree,
     get_captured_spans,
@@ -33,6 +35,7 @@ from core.govops.tracer import (
 from core.graph_gate import check_precedent_status
 from core.neural_parser import parse_legal_case_text
 from core.procedural_calculators import check_limitation_period, check_liquidated_damages_penalty
+from core.provisional_analysis import generate_provisional_analysis
 from core.response_renderer import render_legal_advice_summary
 from core.safety.content_moderation import check_content_safety
 from core.symbolic_engine import run_symbolic_deduction
@@ -79,6 +82,110 @@ if "iteration_count" not in st.session_state:
     st.session_state.iteration_count = 0
 if "audit_log" not in st.session_state:
     st.session_state.audit_log = []
+if "last_case_payload" not in st.session_state:
+    st.session_state.last_case_payload = None
+
+
+def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, run_validator=True):
+    """Run graph gate, domain classification, SAFR envelope, symbolic
+    deduction, procedural calculators, and (if the domain is unmapped) a
+    provisional LLM analysis for one legal-case payload.
+
+    Returns (summary, verdict_card, safr_panel_fields).
+    """
+    with start_worker_span("graph_gate", "execute_tool", "graph_gate"):
+        graph_result = check_precedent_status(payload.cited_precedent)
+        additional_graph_results = [check_precedent_status(c) for c in payload.additional_precedents]
+
+    if run_validator:
+        with start_worker_span("extraction_validator", "execute_tool", "extraction_validator"):
+            consistency_result = validate_extraction_consistency(payload, provisional_source_text)
+    else:
+        consistency_result = ConsistencyCheckResult(is_consistent=True, contradictions=[])
+
+    with start_worker_span("domain_router", "execute_tool", "domain_router"):
+        domains_evaluated = classify_domains(payload)
+        unmapped = is_unmapped_domain(payload)
+
+    safr_result = evaluate_safr_envelope(
+        payload,
+        extraction_confidence=payload.extraction_confidence,
+        claim_value_usd=payload.claim_value_sgd,
+        extraction_contradictions=consistency_result.contradictions,
+        is_unmapped_domain=unmapped,
+    )
+    set_disposition(root_span, safr_result.verdict)
+
+    deduction = None
+    limitation = None
+    penalty_check = None
+    provisional_text = None
+    if safr_result.disposition != SafrDisposition.DENY:
+        with start_worker_span("symbolic_deduction", "execute_tool", "symbolic_engine"):
+            deduction = run_symbolic_deduction(payload)
+
+        if payload.contract_breach_date:
+            with start_worker_span("limitation_calculator", "execute_tool", "procedural_calculator"):
+                limitation = check_limitation_period(payload.contract_breach_date)
+
+        if payload.monthly_salary_sgd and payload.liquidated_damages_sgd:
+            with start_worker_span("penalty_clause_calculator", "execute_tool", "procedural_calculator"):
+                penalty_check = check_liquidated_damages_penalty(
+                    payload.monthly_salary_sgd, payload.liquidated_damages_sgd
+                )
+
+        if unmapped:
+            provisional_usage: dict = {}
+            with start_worker_span("provisional_analysis", "chat", "provisional_analysis_llm"):
+                provisional_text = generate_provisional_analysis(provisional_source_text, usage_sink=provisional_usage)
+            ledger.record(
+                "provisional_analysis",
+                provisional_usage.get("model", "offline-no-provisional-analysis"),
+                provisional_usage.get("input_tokens", 0),
+                provisional_usage.get("output_tokens", 0),
+            )
+
+    if safr_result.disposition == SafrDisposition.DENY:
+        summary = "🚫 This request was **denied** by the MAS SAFR governance envelope: " + "; ".join(
+            safr_result.reasons
+        )
+    elif unmapped:
+        summary = (
+            "🧭 **No deterministic rule module is loaded for this case's legal domain(s).** "
+            "Escalating to human review with a provisional analysis below.\n\n"
+            f"{provisional_text}"
+        )
+    else:
+        summary = render_legal_advice_summary(
+            payload,
+            deduction,
+            limitation,
+            graph_result,
+            penalty_check=penalty_check,
+            additional_graph_results=additional_graph_results,
+        )
+        if safr_result.disposition == SafrDisposition.ESCALATE:
+            summary = "🧑‍⚖️ **Escalated for human-in-the-loop review.** " + summary
+
+    verdict_card = {
+        "case_id": payload.case_id,
+        "extracted_facts": payload.model_dump(),
+        "domains_evaluated": domains_evaluated,
+        "is_unmapped_domain": unmapped,
+        "graph_gate": graph_result,
+        "additional_precedent_checks": additional_graph_results,
+        "extraction_consistency": vars(consistency_result),
+        "symbolic_deduction": deduction,
+        "limitation_check": limitation,
+        "penalty_check": penalty_check,
+        "provisional_analysis": provisional_text,
+    }
+    safr_panel_fields = {
+        "safr_disposition": safr_result.disposition.value,
+        "safr_verdict": safr_result.verdict,
+        "safr_reasons": safr_result.reasons,
+    }
+    return summary, verdict_card, safr_panel_fields
 
 with st.sidebar:
     st.header("Session / GovOps Controls")
@@ -91,6 +198,7 @@ with st.sidebar:
         st.session_state.messages = []
         st.session_state.iteration_count = 0
         st.session_state.audit_log = []
+        st.session_state.last_case_payload = None
         st.rerun()
 
 st.title("⚖️ Mega AI — Singapore Legal Control Plane Chatbot")
@@ -135,6 +243,8 @@ if prompt:
 
     st.session_state.iteration_count += 1
     moderation = check_content_safety(prompt)
+    last_payload = st.session_state.last_case_payload
+    fact_patch = detect_fact_patch(prompt) if last_payload is not None and len(prompt.split()) < 40 else None
 
     if not moderation.is_safe:
         refusal = (
@@ -153,6 +263,61 @@ if prompt:
                 "govops_panel": {"moderation": moderation.__dict__, "safr_disposition": "DENY"},
             }
         )
+
+    elif fact_patch is not None:
+        # Stateful multi-turn HITL follow-up: re-evaluate the previous
+        # case with a small set of facts patched, instead of re-parsing
+        # a brand new case from a short follow-up message.
+        reset_trace_buffer()
+        ledger = FinOpsLedger(max_token_budget=int(token_budget))
+        case_id = f"{last_payload.case_id}-rev{st.session_state.iteration_count}"
+        patched_payload = last_payload.model_copy(update={**fact_patch.field_updates, "case_id": case_id})
+
+        with st.chat_message("assistant"):
+            try:
+                with start_root_span(st.session_state.conversation_id, enduser_id, prompt) as root_span:
+                    traceparent = inject_traceparent().get("traceparent", "")
+                    summary, verdict_card, safr_panel_fields = _evaluate_case_payload(
+                        patched_payload, prompt, ledger, root_span, run_validator=False
+                    )
+
+                spans = get_captured_spans()
+                span_tree = build_span_tree(spans)
+                trace_id = span_tree[0]["trace_id"] if span_tree else None
+
+                summary = f"🔁 **Re-evaluating with updated facts** ({fact_patch.description}).\n\n" + summary
+                govops_panel = {
+                    "trace_id": trace_id,
+                    "traceparent": traceparent,
+                    "finops": ledger.to_dict(),
+                    "span_tree": span_tree,
+                    **safr_panel_fields,
+                }
+
+                st.session_state.audit_log.append(
+                    {
+                        "case_id": patched_payload.case_id,
+                        "prompt": prompt,
+                        "verdict_card": verdict_card,
+                        "govops_panel": govops_panel,
+                    }
+                )
+                st.session_state.last_case_payload = patched_payload
+
+                st.markdown(summary)
+                with st.expander("Deterministic Verdict Card"):
+                    st.json(verdict_card)
+                with st.expander("GovOps & Telemetry Panel"):
+                    st.json(govops_panel)
+
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": summary, "verdict_card": verdict_card, "govops_panel": govops_panel}
+                )
+
+            except TokenBudgetExceededError as exc:
+                error_message = f"🔴 FinOps circuit breaker tripped: {exc}"
+                st.error(error_message)
+                st.session_state.messages.append({"role": "assistant", "content": error_message})
 
     elif not is_legal_case_message(prompt):
         reset_trace_buffer()
@@ -210,82 +375,22 @@ if prompt:
                         parser_span.set_attribute("gen_ai.usage.input_tokens", usage_sink.get("input_tokens", 0))
                         parser_span.set_attribute("gen_ai.usage.output_tokens", usage_sink.get("output_tokens", 0))
 
-                    with start_worker_span("graph_gate", "execute_tool", "graph_gate"):
-                        graph_result = check_precedent_status(payload.cited_precedent)
-                        additional_graph_results = [
-                            check_precedent_status(citation) for citation in payload.additional_precedents
-                        ]
+                    st.session_state.last_case_payload = payload
 
-                    with start_worker_span("extraction_validator", "execute_tool", "extraction_validator"):
-                        consistency_result = validate_extraction_consistency(payload, prompt)
-
-                    safr_result = evaluate_safr_envelope(
-                        payload,
-                        extraction_confidence=payload.extraction_confidence,
-                        claim_value_usd=payload.claim_value_sgd,
-                        extraction_contradictions=consistency_result.contradictions,
+                    summary, verdict_card, safr_panel_fields = _evaluate_case_payload(
+                        payload, prompt, ledger, root_span, run_validator=True
                     )
-                    set_disposition(root_span, safr_result.verdict)
-
-                    deduction = None
-                    limitation = None
-                    penalty_check = None
-                    if safr_result.disposition != SafrDisposition.DENY:
-                        with start_worker_span("symbolic_deduction", "execute_tool", "symbolic_engine"):
-                            deduction = run_symbolic_deduction(payload)
-
-                        if payload.contract_breach_date:
-                            with start_worker_span(
-                                "limitation_calculator", "execute_tool", "procedural_calculator"
-                            ):
-                                limitation = check_limitation_period(payload.contract_breach_date)
-
-                        if payload.monthly_salary_sgd and payload.liquidated_damages_sgd:
-                            with start_worker_span(
-                                "penalty_clause_calculator", "execute_tool", "procedural_calculator"
-                            ):
-                                penalty_check = check_liquidated_damages_penalty(
-                                    payload.monthly_salary_sgd, payload.liquidated_damages_sgd
-                                )
 
                 spans = get_captured_spans()
                 span_tree = build_span_tree(spans)
                 trace_id = span_tree[0]["trace_id"] if span_tree else None
 
-                if safr_result.disposition == SafrDisposition.DENY:
-                    summary = "🚫 This request was **denied** by the MAS SAFR governance envelope: " + "; ".join(
-                        safr_result.reasons
-                    )
-                else:
-                    summary = render_legal_advice_summary(
-                        payload,
-                        deduction,
-                        limitation,
-                        graph_result,
-                        penalty_check=penalty_check,
-                        additional_graph_results=additional_graph_results,
-                    )
-                    if safr_result.disposition == SafrDisposition.ESCALATE:
-                        summary = "🧑‍⚖️ **Escalated for human-in-the-loop review.** " + summary
-
-                verdict_card = {
-                    "case_id": payload.case_id,
-                    "extracted_facts": payload.model_dump(),
-                    "graph_gate": graph_result,
-                    "additional_precedent_checks": additional_graph_results,
-                    "extraction_consistency": vars(consistency_result),
-                    "symbolic_deduction": deduction,
-                    "limitation_check": limitation,
-                    "penalty_check": penalty_check,
-                }
                 govops_panel = {
                     "trace_id": trace_id,
                     "traceparent": traceparent,
-                    "safr_disposition": safr_result.disposition.value,
-                    "safr_verdict": safr_result.verdict,
-                    "safr_reasons": safr_result.reasons,
                     "finops": ledger.to_dict(),
                     "span_tree": span_tree,
+                    **safr_panel_fields,
                 }
 
                 st.session_state.audit_log.append(
@@ -301,11 +406,12 @@ if prompt:
                 with st.expander("Deterministic Verdict Card"):
                     st.json(verdict_card)
                 with st.expander("Symbolic Proof Trace"):
+                    deduction = verdict_card.get("symbolic_deduction")
                     if deduction:
                         for line in deduction["proof_trace"]:
                             st.code(line, language="prolog")
                     else:
-                        st.write("No symbolic deduction executed (request denied at SAFR gate).")
+                        st.write("No symbolic deduction executed (request denied at SAFR gate, or domain unmapped).")
                 with st.expander("GovOps & Telemetry Panel"):
                     st.json(govops_panel)
 

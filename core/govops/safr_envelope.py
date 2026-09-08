@@ -41,10 +41,18 @@ def evaluate_safr_envelope(
     extraction_confidence: float = 1.0,
     claim_value_usd: float = 0.0,
     extraction_contradictions: Optional[List[str]] = None,
+    is_unmapped_domain: bool = False,
 ) -> SafrEnvelopeResult:
     """Risk-gate the neural-extracted payload before symbolic deduction."""
     risk_flags: List[str] = []
     reasons: List[str] = []
+
+    if is_unmapped_domain:
+        risk_flags.append("UNMAPPED_DOMAIN")
+        reasons.append(
+            "No deterministic rule module covers this case's legal domain(s) - "
+            "escalating instead of returning a silent all-false verdict."
+        )
 
     if extraction_confidence < MIN_EXTRACTION_CONFIDENCE:
         risk_flags.append("LOW_EXTRACTION_CONFIDENCE")
@@ -72,7 +80,12 @@ def evaluate_safr_envelope(
         risk_flags.append("MISSING_BREACH_DATE")
         reasons.append("No contract breach date extracted; limitation period cannot be computed.")
 
-    if "PERSONAL_INJURY_OR_DEATH" in risk_flags or "LOW_EXTRACTION_CONFIDENCE" in risk_flags or "EXTRACTION_CONTRADICTION" in risk_flags:
+    if (
+        "PERSONAL_INJURY_OR_DEATH" in risk_flags
+        or "LOW_EXTRACTION_CONFIDENCE" in risk_flags
+        or "EXTRACTION_CONTRADICTION" in risk_flags
+        or "UNMAPPED_DOMAIN" in risk_flags
+    ):
         disposition = SafrDisposition.ESCALATE
         verdict = "ESCALATE"
     elif risk_flags:

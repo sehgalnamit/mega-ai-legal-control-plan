@@ -72,6 +72,18 @@ def test_safr_envelope_observes_high_value_claim():
     assert "HIGH_VALUE_CLAIM" in result.risk_flags
 
 
+def test_safr_envelope_escalates_unmapped_domain():
+    result = evaluate_safr_envelope(
+        _payload(contract_breach_date="2020-01-01"),
+        extraction_confidence=0.95,
+        claim_value_usd=500.0,
+        is_unmapped_domain=True,
+    )
+
+    assert result.disposition == SafrDisposition.ESCALATE
+    assert "UNMAPPED_DOMAIN" in result.risk_flags
+
+
 def test_tracer_emits_root_and_worker_spans_with_w3c_traceparent():
     reset_trace_buffer()
     with start_root_span("conv-1", "lawyer_session_1", "test query") as root_span:
