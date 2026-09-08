@@ -53,6 +53,15 @@ STRICT RULES:
 4. You MAY include an `extraction_confidence` float (0-1) reflecting how
    confident you are in the factual extraction itself - never a legal
    judgment.
+5. `factual_foreseeability`, `proximity_type`, and `injury_type` feed
+   ONLY the Spandeck tort/negligence duty-of-care test. Set
+   `factual_foreseeability` to true and populate `injury_type` ONLY if
+   the text pleads a tortious duty-of-care/negligence claim. A pure
+   contract dispute (breach of an express term, termination, contractual
+   damages) is NOT a tort claim - leave `factual_foreseeability` false
+   and `injury_type` null even if the contractual breach or its
+   consequences were foreseeable in the ordinary sense, unless a
+   negligence claim is separately and explicitly pleaded.
 """
 
 
