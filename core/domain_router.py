@@ -9,7 +9,7 @@ case outside current rule coverage.
 """
 from __future__ import annotations
 
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from core.schemas import LegalCaseFactPayload
 
@@ -38,6 +38,23 @@ def classify_domains(payload: LegalCaseFactPayload) -> List[str]:
         domains.append("liquidated_damages_penalty")
 
     return domains
+
+
+def build_skipped_deduction_notice(domain_labels: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Synthetic "deduction skipped" payload for unmapped-domain cases.
+
+    Ensures the proof-trace panel never shows a misleading Spandeck/UCTA/
+    RDC Concrete/restraint-of-trade deduction (e.g. `duty_of_care_exists
+    => False`) for a case that engages none of those legal tests.
+    """
+    labels = domain_labels or ["Unclassified"]
+    return {
+        "engine_status": "DYNAMIC_SYNTHESIS_REQUIRED",
+        "proof_trace": [
+            f"INFO: Domain(s) {labels} have no loaded deterministic rule "
+            "module - Spandeck/UCTA/RDC Concrete/restraint-of-trade deduction skipped."
+        ],
+    }
 
 
 def is_unmapped_domain(payload: LegalCaseFactPayload) -> bool:

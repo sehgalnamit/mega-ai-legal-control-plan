@@ -50,6 +50,18 @@ def test_classify_ip_dispute():
     assert any(d.domain == SingaporeLegalDomain.IP_TECHNOLOGY for d in matches)
 
 
+def test_classify_trade_secret_dispute_as_both_employment_and_ip():
+    text = (
+        "A former researcher downloaded confidential lab protocols before resigning and is now "
+        "using them at a rival firm; the employer seeks a springboard injunction for breach of confidence."
+    )
+    matches = classify_singapore_legal_domains(text)
+    matched_enums = {d.domain for d in matches}
+
+    assert SingaporeLegalDomain.EMPLOYMENT_LAW in matched_enums
+    assert SingaporeLegalDomain.IP_TECHNOLOGY in matched_enums
+
+
 def test_classify_crypto_asset_dispute():
     text = (
         "A digital payment token exchange inadvertently transferred USDT into the defendant's "

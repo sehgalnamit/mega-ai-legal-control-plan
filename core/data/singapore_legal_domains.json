@@ -279,7 +279,10 @@
         "Personal Data Protection Act 2012 (PDPA)",
         "Cybersecurity Act 2018"
       ],
-      "precedents": [],
+      "precedents": [
+        "Clearlab SG Pte Ltd v Ting Chong Chai [2015] 1 SLR 163",
+        "Coco v A N Clark (Engineers) Ltd [1969] RPC 41"
+      ],
       "rule_module": null,
       "sub_domains": [
         {
@@ -295,6 +298,11 @@
         {
           "name": "patents_and_designs",
           "keywords": ["patent", "novelty", "inventive step", "registered design"],
+          "implemented": false
+        },
+        {
+          "name": "trade_secrets_and_confidential_information",
+          "keywords": ["trade secret", "breach of confidence", "springboard injunction", "spring-boarding", "confidential information"],
           "implemented": false
         },
         {

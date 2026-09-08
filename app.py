@@ -12,7 +12,7 @@ import uuid
 import streamlit as st
 
 from core.chat_router import generate_generic_reply, is_legal_case_message
-from core.domain_router import classify_domains, is_unmapped_domain
+from core.domain_router import build_skipped_deduction_notice, classify_domains, is_unmapped_domain
 from core.domain_taxonomy import build_unmapped_domain_response, classify_singapore_legal_domains
 from core.followup_intent import detect_fact_patch
 from core.govops.finops import (
@@ -124,8 +124,19 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
     unmapped_domain_analysis = None
     matched_domains = []
     if safr_result.disposition != SafrDisposition.DENY:
-        with start_worker_span("symbolic_deduction", "execute_tool", "symbolic_engine"):
-            deduction = run_symbolic_deduction(payload)
+        if unmapped:
+            # No deterministic rule module covers this domain - skip Spandeck/
+            # UCTA/RDC Concrete/restraint-of-trade deduction entirely rather
+            # than emitting a misleading proof trace for an irrelevant test.
+            with start_worker_span("domain_taxonomy", "execute_tool", "domain_taxonomy"):
+                matched_domains = classify_singapore_legal_domains(provisional_source_text)
+                unmapped_domain_analysis = build_unmapped_domain_response(matched_domains, payload.case_id)
+
+            deduction = build_skipped_deduction_notice([d.label for d in matched_domains])
+            deduction["case_id"] = payload.case_id
+        else:
+            with start_worker_span("symbolic_deduction", "execute_tool", "symbolic_engine"):
+                deduction = run_symbolic_deduction(payload)
 
         if payload.contract_breach_date:
             with start_worker_span("limitation_calculator", "execute_tool", "procedural_calculator"):
@@ -138,10 +149,6 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
                 )
 
         if unmapped:
-            with start_worker_span("domain_taxonomy", "execute_tool", "domain_taxonomy"):
-                matched_domains = classify_singapore_legal_domains(provisional_source_text)
-                unmapped_domain_analysis = build_unmapped_domain_response(matched_domains, payload.case_id)
-
             domain_context = None
             if matched_domains:
                 statutes = ", ".join(unmapped_domain_analysis["matched_statutory_codes"]) or "none identified"
@@ -152,7 +159,7 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
                 )
 
             provisional_usage: dict = {}
-            with start_worker_span("provisional_analysis", "chat", "provisional_analysis_llm"):
+            with start_worker_span("provisional_analysis", "chat", "dynamic_synthesizer"):
                 provisional_text = generate_provisional_analysis(
                     provisional_source_text, usage_sink=provisional_usage, domain_context=domain_context
                 )

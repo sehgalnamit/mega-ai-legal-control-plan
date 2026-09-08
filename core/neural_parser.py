@@ -28,6 +28,18 @@ _CASE_CITATION_RE = re.compile(r"([A-Z][\w.&'()\-,\s]*? v\.? [A-Z][\w.&'()\-,\s]
 # Strips a trailing explanatory parenthetical, e.g. "... 663 (SGCA test for X)."
 _TRAILING_EXPLANATION_RE = re.compile(r"\s*\([^()]*\)\.?\s*$")
 
+# Currency amounts written as "S$2.8 million" / "S$100k" etc. - a bare
+# digit regex would parse "2.8 million" as 2.8, silently understating the
+# amount by a factor of a million.
+_CURRENCY_MULTIPLIERS = {
+    "million": 1_000_000,
+    "mil": 1_000_000,
+    "m": 1_000_000,
+    "thousand": 1_000,
+    "k": 1_000,
+}
+_CURRENCY_SUFFIX_PATTERN = r"(million|thousand|mil|m|k)?"
+
 SYSTEM_PROMPT = """You are a Semantic Fact Extraction engine for Singapore legal texts.
 
 STRICT RULES:
@@ -89,6 +101,21 @@ def parse_legal_case_text(
             output_tokens=max(len(payload.model_dump_json()) // 4, 1),
         )
     return payload
+
+
+def _parse_currency_amount(text: str, label_pattern: str) -> Optional[float]:
+    """Extract an `S$<amount>[ million|thousand|m|k]` figure near `label_pattern`.
+
+    e.g. "S$2.8 Million" -> 2_800_000.0, not the bare 2.8 a naive digit
+    regex would return.
+    """
+    pattern = rf"{label_pattern}[^.\n]*?s\$\s?([\d,]+(?:\.\d+)?)\s*{_CURRENCY_SUFFIX_PATTERN}\b"
+    match = re.search(pattern, text, re.IGNORECASE)
+    if not match:
+        return None
+    amount = float(match.group(1).replace(",", ""))
+    multiplier = _CURRENCY_MULTIPLIERS.get((match.group(2) or "").lower(), 1)
+    return amount * multiplier
 
 
 def _mock_extract_facts(case_text: str, case_id: str) -> dict:
@@ -177,25 +204,23 @@ def _mock_extract_facts(case_text: str, case_id: str) -> dict:
         elif "singapore" in text:
             restraint_geography_scope = "singapore"
 
-    monthly_salary_sgd: Optional[float] = None
-    salary_match = re.search(r"monthly salary[^.\n]*?s\$\s?([\d,]+(?:\.\d+)?)", case_text, re.IGNORECASE)
-    if salary_match:
-        monthly_salary_sgd = float(salary_match.group(1).replace(",", ""))
+    monthly_salary_sgd = _parse_currency_amount(case_text, r"monthly salary")
 
-    liquidated_damages_sgd: Optional[float] = None
-    penalty_match = re.search(
-        r"(?:liquidated damages|fixed penalty)[^.\n]*?s\$\s?([\d,]+(?:\.\d+)?)", case_text, re.IGNORECASE
-    )
-    if penalty_match:
-        liquidated_damages_sgd = float(penalty_match.group(1).replace(",", ""))
+    liquidated_damages_sgd = _parse_currency_amount(case_text, r"(?:liquidated damages|fixed penalty)")
 
     breach_match = re.search(r"(\d{4}-\d{2}-\d{2})", case_text)
     contract_breach_date = breach_match.group(1) if breach_match else None
 
     cited_precedent, additional_precedents = _extract_precedents(case_text)
 
-    claim_match = re.search(r"s\$\s?([\d,]+(?:\.\d+)?)", case_text, re.IGNORECASE)
-    claim_value_sgd = float(claim_match.group(1).replace(",", "")) if claim_match else 0.0
+    claim_match = re.search(
+        rf"s\$\s?([\d,]+(?:\.\d+)?)\s*{_CURRENCY_SUFFIX_PATTERN}\b", case_text, re.IGNORECASE
+    )
+    if claim_match:
+        claim_multiplier = _CURRENCY_MULTIPLIERS.get((claim_match.group(2) or "").lower(), 1)
+        claim_value_sgd = float(claim_match.group(1).replace(",", "")) * claim_multiplier
+    else:
+        claim_value_sgd = 0.0
 
     return {
         "case_id": case_id,
