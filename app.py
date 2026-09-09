@@ -123,6 +123,7 @@ def _evaluate_case_payload(payload, provisional_source_text, ledger, root_span, 
         claim_value_usd=payload.claim_value_sgd,
         extraction_contradictions=consistency_result.contradictions,
         is_unmapped_domain=unmapped,
+        matched_domains=domains_evaluated,
     )
     set_disposition(root_span, safr_result.verdict)
 

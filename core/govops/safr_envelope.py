@@ -42,10 +42,12 @@ def evaluate_safr_envelope(
     claim_value_usd: float = 0.0,
     extraction_contradictions: Optional[List[str]] = None,
     is_unmapped_domain: bool = False,
+    matched_domains: Optional[List[str]] = None,
 ) -> SafrEnvelopeResult:
     """Risk-gate the neural-extracted payload before symbolic deduction."""
     risk_flags: List[str] = []
     reasons: List[str] = []
+    matched_domains = matched_domains or []
 
     if is_unmapped_domain:
         risk_flags.append("UNMAPPED_DOMAIN")
@@ -76,9 +78,14 @@ def evaluate_safr_envelope(
         risk_flags.append("PERSONAL_INJURY_OR_DEATH")
         reasons.append("Payload involves death/personal injury - statutory bar territory (UCTA s.2(1)).")
 
-    if payload.contract_breach_date is None:
-        risk_flags.append("MISSING_BREACH_DATE")
-        reasons.append("No contract breach date extracted; limitation period cannot be computed.")
+    # Limitation Act 1959 s.6(1)(a) only bites on a historical breach of
+    # contract claim (RDC Concrete term-breach domain) - an advisory matter
+    # like a restraint-of-trade enforceability opinion has no accrued cause
+    # of action, so a missing breach date there is not a risk signal.
+    if payload.contract_breach_date is None and "employment_restraint_of_trade" not in matched_domains:
+        if not matched_domains or "contract_term_breach" in matched_domains:
+            risk_flags.append("MISSING_BREACH_DATE")
+            reasons.append("No contract breach date extracted; limitation period cannot be computed.")
 
     if (
         "PERSONAL_INJURY_OR_DEATH" in risk_flags
